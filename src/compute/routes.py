@@ -6,7 +6,13 @@ from sqlalchemy.orm import Session
 
 from .auth import UserPayload, require_admin, require_permission
 from .database import get_db
-from .schemas import CleanupResult, ConfigResponse, JobResponse, StorageInfo, WorkerCapabilitiesResponse
+from .schemas import (
+    CleanupResult,
+    ConfigResponse,
+    JobResponse,
+    StorageInfo,
+    WorkerCapabilitiesResponse,
+)
 from .service import CapabilityService, JobService
 
 router = APIRouter()

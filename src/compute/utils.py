@@ -6,8 +6,9 @@ import socket
 import sys
 from pathlib import Path
 
-from alembic import command
 from alembic.config import Config as AlembicConfig
+
+from alembic import command
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ def check_server_running(host: str, port: int, timeout: float = 2.0) -> bool:
         result = sock.connect_ex((host, port))
         sock.close()
         return result == 0
-    except (socket.gaierror, socket.timeout, OSError):
+    except (TimeoutError, socket.gaierror, OSError):
         return False
 
 

@@ -56,7 +56,7 @@ def signal_handler(signum: int, _frame: FrameType | None) -> None:
         shutdown_event.set()
     else:
         # Use print to ensure message appears before exit
-        print(f"\nWARNING: Force exit requested, terminating immediately!", file=sys.stderr, flush=True)
+        print("\nWARNING: Force exit requested, terminating immediately!", file=sys.stderr, flush=True)
         sys.exit(1)
 
 
