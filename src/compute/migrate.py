@@ -16,7 +16,7 @@ def main() -> int:
     from .utils import ensure_cl_server_dir, run_migrations
 
     try:
-        ensure_cl_server_dir()
+        _ = ensure_cl_server_dir()
     except SystemExit:
         return 1
 

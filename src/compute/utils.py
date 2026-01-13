@@ -29,7 +29,7 @@ def ensure_cl_server_dir() -> Path:
     if not cl_server_dir:
         print(
             "ERROR: CL_SERVER_DIR environment variable is not set.\n"
-            "Please set it to a valid directory path.",
+            + "Please set it to a valid directory path.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -44,8 +44,8 @@ def ensure_cl_server_dir() -> Path:
         except (OSError, PermissionError) as e:
             print(
                 f"ERROR: Failed to create CL_SERVER_DIR: {dir_path}\n"
-                f"Reason: {e}\n"
-                "Please ensure the parent directory exists and you have write permissions.",
+                + f"Reason: {e}\n"
+                + "Please ensure the parent directory exists and you have write permissions.",
                 file=sys.stderr,
             )
             raise SystemExit(1)
@@ -54,7 +54,7 @@ def ensure_cl_server_dir() -> Path:
     if not os.access(dir_path, os.W_OK):
         print(
             f"ERROR: CL_SERVER_DIR exists but is not writable: {dir_path}\n"
-            "Please ensure you have write permissions.",
+            + "Please ensure you have write permissions.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -79,8 +79,8 @@ def validate_cl_server_dir_exists() -> Path:
     if not cl_server_dir:
         print(
             "ERROR: CL_SERVER_DIR environment variable is not set.\n"
-            "Please set it to a valid directory path.\n"
-            "Ensure the compute server is running or has been run at least once.",
+            + "Please set it to a valid directory path.\n"
+            + "Ensure the compute server is running or has been run at least once.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -91,10 +91,10 @@ def validate_cl_server_dir_exists() -> Path:
     if not dir_path.exists():
         print(
             f"ERROR: CL_SERVER_DIR does not exist: {dir_path}\n"
-            "Please ensure:\n"
-            "  1. The compute server has been started at least once, OR\n"
-            "  2. The directory has been created manually\n"
-            f"Run: mkdir -p {dir_path}",
+            + "Please ensure:\n"
+            + "  1. The compute server has been started at least once, OR\n"
+            + "  2. The directory has been created manually\n"
+            + f"Run: mkdir -p {dir_path}",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -103,7 +103,7 @@ def validate_cl_server_dir_exists() -> Path:
     if not dir_path.is_dir():
         print(
             f"ERROR: CL_SERVER_DIR is not a directory: {dir_path}\n"
-            "Please ensure CL_SERVER_DIR points to a directory, not a file.",
+            + "Please ensure CL_SERVER_DIR points to a directory, not a file.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -112,7 +112,7 @@ def validate_cl_server_dir_exists() -> Path:
     if not os.access(dir_path, os.R_OK | os.W_OK):
         print(
             f"ERROR: CL_SERVER_DIR exists but is not accessible: {dir_path}\n"
-            "Please ensure you have read and write permissions.",
+            + "Please ensure you have read and write permissions.",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -156,10 +156,10 @@ def ensure_server_running(host: str, port: int) -> None:
     if not check_server_running(host, port):
         print(
             f"ERROR: Compute server is not running at {host}:{port}\n"
-            f"Please ensure:\n"
-            f"  1. The compute server is started, OR\n"
-            f"  2. The server host/port are correct\n"
-            f"Start server with: uv run compute-server --port {port}",
+            + f"Please ensure:\n"
+            + f"  1. The compute server is started, OR\n"
+            + f"  2. The server host/port are correct\n"
+            + f"Start server with: uv run compute-server --port {port}",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -182,7 +182,7 @@ def run_migrations() -> None:
     if not alembic_ini.exists():
         msg = (
             f"alembic.ini not found at {alembic_ini}\n"
-            "Database migrations cannot be run without alembic configuration."
+            + "Database migrations cannot be run without alembic configuration."
         )
         logger.error(msg)
         raise FileNotFoundError(msg)
@@ -192,7 +192,7 @@ def run_migrations() -> None:
     if not versions_dir.exists():
         msg = (
             f"Alembic versions directory not found at {versions_dir}\n"
-            "Please create it with: mkdir -p alembic/versions"
+            + "Please create it with: mkdir -p alembic/versions"
         )
         logger.error(msg)
         raise FileNotFoundError(msg)
@@ -220,7 +220,11 @@ def run_migrations() -> None:
         logger.info("Running database migrations...")
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations completed successfully")
-        print("INFO:     Database migrations completed successfully", file=sys.stderr, flush=True)
+        print(
+            "INFO:     Database migrations completed successfully",
+            file=sys.stderr,
+            flush=True,
+        )
     except Exception as e:
         msg = f"Failed to run database migrations: {e}"
         logger.error(msg)
