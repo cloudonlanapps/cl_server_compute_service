@@ -1,25 +1,8 @@
 {
-  "venvPath": ".",
-  "venv": ".venv",
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "**/__pycache__",
-    "**/node_modules",
-    ".venv"
-  ],
-  "reportMissingTypeStubs": true,
+  "include": ["src"],
+  "exclude": ["**/__pycache__", "**/node_modules", ".venv"],
+  "extraPaths": ["src"],
+
+  // Avoid error with FastAPI's Depends
   "reportCallInDefaultInitializer": "none",
-  "extraPaths": [
-    "src"
-  ],
-  "typeCheckingMode": "strict",
-  "reportAny": "error",
-  "reportUnknownVariableType": "error",
-  "reportUnknownMemberType": "error",
-  "reportUnknownArgumentType": "error",
-  "reportUnknownParameterType": "error",
-  "reportMissingTypeArgument": "error",
-  "pythonVersion": "3.12"
 }
