@@ -1,6 +1,5 @@
 """Task Server - Compute job and worker management service."""
 
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -11,8 +10,6 @@ from .database import get_db
 from .plugins import create_compute_plugin_router
 from .routes import router
 from .schemas import RootResponse
-
-logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -51,9 +48,6 @@ async def validation_exception_handler(_request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={"detail": exc.detail},
     )
-
-
-
 
 
 @app.get(

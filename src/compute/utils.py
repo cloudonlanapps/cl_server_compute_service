@@ -1,16 +1,14 @@
 """Utility functions for compute service."""
 
-import logging
 import os
 import socket
 import sys
 from pathlib import Path
 
 from alembic.config import Config as AlembicConfig
+from loguru import logger
 
 from alembic import command
-
-logger = logging.getLogger(__name__)
 
 
 def ensure_cl_server_dir() -> Path:
@@ -156,9 +154,9 @@ def ensure_server_running(host: str, port: int) -> None:
     if not check_server_running(host, port):
         print(
             f"ERROR: Compute server is not running at {host}:{port}\n"
-            + f"Please ensure:\n"
-            + f"  1. The compute server is started, OR\n"
-            + f"  2. The server host/port are correct\n"
+            + "Please ensure:\n"
+            + "  1. The compute server is started, OR\n"
+            + "  2. The server host/port are correct\n"
             + f"Start server with: uv run compute-server --port {port}",
             file=sys.stderr,
         )

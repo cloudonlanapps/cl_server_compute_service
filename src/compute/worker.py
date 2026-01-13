@@ -11,18 +11,16 @@ This module contains the ComputeWorker class that:
 from __future__ import annotations
 
 import asyncio
-import logging
 import signal
 from types import FrameType
 
 from cl_ml_tools import Worker, shutdown_broadcaster
 from cl_server_shared import Config, JobStorageService
 from cl_server_shared.shared_db import JobRepositoryService
+from loguru import logger
 
 from .capability_broadcaster import CapabilityBroadcaster
 from .database import SessionLocal
-
-logger = logging.getLogger("compute")
 
 # Global shutdown event and signal counter
 shutdown_event = asyncio.Event()
@@ -47,6 +45,7 @@ def signal_handler(signum: int, _frame: FrameType | None) -> None:
     Second signal: Forces immediate exit
     """
     import sys
+
     global shutdown_signal_count
     shutdown_signal_count += 1
 
@@ -56,7 +55,11 @@ def signal_handler(signum: int, _frame: FrameType | None) -> None:
         shutdown_event.set()
     else:
         # Use print to ensure message appears before exit
-        print("\nWARNING: Force exit requested, terminating immediately!", file=sys.stderr, flush=True)
+        print(
+            "\nWARNING: Force exit requested, terminating immediately!",
+            file=sys.stderr,
+            flush=True,
+        )
         sys.exit(1)
 
 

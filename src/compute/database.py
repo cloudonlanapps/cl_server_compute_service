@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable, Generator
 
 from cl_server_shared.config import Config
+from loguru import logger
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
-
-logger = logging.getLogger(__name__)
 
 
 def enable_wal_mode(
@@ -125,7 +123,9 @@ def check_tables_exist() -> None:
 
     required_tables = ["jobs", "queue_entries", "service_config", "alembic_version"]
 
-    missing_tables = [table for table in required_tables if table not in existing_tables]
+    missing_tables = [
+        table for table in required_tables if table not in existing_tables
+    ]
 
     if missing_tables:
         msg = (

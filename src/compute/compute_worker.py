@@ -9,13 +9,11 @@ This CLI:
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace
 
-logger = logging.getLogger("compute")
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+from loguru import logger
 
 
 class Args(Namespace):
@@ -82,6 +80,7 @@ def main() -> int:
     # Check that compute server is running on localhost
     # Worker requires server to be up (server creates directory and runs migrations)
     from .utils import ensure_server_running
+
     server_host = "localhost"
     print(f"Checking compute server at {server_host}:{args.server_port}...")
     ensure_server_running(server_host, args.server_port)
@@ -90,6 +89,7 @@ def main() -> int:
     # Validate CL_SERVER_DIR exists (does not create it - expects server to have created it)
     # This MUST happen before importing anything that uses Config
     from .utils import validate_cl_server_dir_exists
+
     _ = validate_cl_server_dir_exists()
 
     # Import ComputeWorker here after server and directory validation

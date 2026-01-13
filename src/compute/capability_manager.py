@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import json
-import logging
 import threading
 
 from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
 from cl_server_shared.config import Config
+from loguru import logger
 from pydantic import BaseModel
 
 from .schemas import CapabilityStats
-
-logger = logging.getLogger(__name__)
 
 _capability_manager_instance: CapabilityManager | None = None
 _manager_lock = threading.Lock()
@@ -57,7 +55,9 @@ class CapabilityManager:
         topic_pattern = f"{Config.CAPABILITY_TOPIC_PREFIX}/+"
 
         if self.broadcaster:
-            _ = self.broadcaster.subscribe(topic=topic_pattern, callback=self.on_message)
+            _ = self.broadcaster.subscribe(
+                topic=topic_pattern, callback=self.on_message
+            )
             logger.info(f"Subscribed to capability topics: {topic_pattern}")
 
         self.ready_event.set()
@@ -92,7 +92,9 @@ class CapabilityManager:
                     self.capabilities_cache[worker_id] = data
                 logger.debug(f"Updated capabilities for {worker_id}: {data}")
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse capability message from {worker_id}: {e}")
+                logger.error(
+                    f"Failed to parse capability message from {worker_id}: {e}"
+                )
         except Exception as e:
             logger.error(f"Error processing capability message: {e}")
 
@@ -117,7 +119,9 @@ class CapabilityManager:
 
         return CapabilityStats(root=aggregated)
 
-    def wait_for_capabilities(self, timeout: int = Config.CAPABILITY_CACHE_TIMEOUT) -> bool:
+    def wait_for_capabilities(
+        self, timeout: int = Config.CAPABILITY_CACHE_TIMEOUT
+    ) -> bool:
         """Wait for capability manager to be ready.
 
         Args:

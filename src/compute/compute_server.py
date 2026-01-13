@@ -1,13 +1,9 @@
 # src/compute/compute_server.py
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from argparse import ArgumentParser, Namespace
-
-logger = logging.getLogger("compute")
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 class Args(Namespace):
@@ -43,6 +39,7 @@ def main() -> int:
     # Ensure CL_SERVER_DIR exists and is writable (creates if needed)
     # This MUST happen before importing anything that uses Config
     from .utils import ensure_cl_server_dir
+
     _ = ensure_cl_server_dir()
 
     # Set env vars expected by your app

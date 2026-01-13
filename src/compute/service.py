@@ -8,6 +8,7 @@ from pathlib import Path
 from cl_server_shared import Config, JobStorageService
 from cl_server_shared.shared_db import JobRepositoryService
 from fastapi import HTTPException, status
+from loguru import logger
 from sqlalchemy.orm import Session
 
 from .database import SessionLocal
@@ -63,7 +64,9 @@ class JobService:
             updated_at=db_job.created_at,
             started_at=db_job.started_at,
             completed_at=db_job.completed_at,
-            error_message=db_job.error_message if hasattr(db_job, "error_message") else None,
+            error_message=(
+                db_job.error_message if hasattr(db_job, "error_message") else None
+            ),
             priority=db_job.priority,
         )
 
@@ -250,9 +253,7 @@ class CapabilityService:
             manager = get_capability_manager()
             return manager.get_cached_capabilities()
         except Exception as e:
-            import logging
 
-            logger = logging.getLogger(__name__)
             logger.error(f"Error retrieving worker capabilities: {e}")
             return CapabilityStats(root={})
 
@@ -268,8 +269,6 @@ class CapabilityService:
             manager = get_capability_manager()
             return len(manager.capabilities_cache)
         except Exception as e:
-            import logging
 
-            logger = logging.getLogger(__name__)
             logger.error(f"Error retrieving worker count: {e}")
             return 0
