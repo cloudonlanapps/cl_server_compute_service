@@ -5,9 +5,19 @@ from cl_ml_tools import (
     BroadcasterBase,
     get_broadcaster,
 )
+from pydantic import BaseModel, ConfigDict, Field
 from cl_server_shared import Config
 from loguru import logger
 
+class WorkerCapability(BaseModel):
+    """Individual worker capability information (from MQTT messages)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    worker_id: str = Field(..., description="Worker unique ID")
+    capabilities: list[str] = Field(..., description="List of task types worker supports")
+    idle_count: int = Field(..., description="1 if idle, 0 if busy")
+    timestamp: int = Field(..., description="Message timestamp (milliseconds)")
 
 class CapabilityBroadcaster:
     """Manages MQTT broadcasting of worker capabilities for service discovery."""
@@ -50,14 +60,14 @@ class CapabilityBroadcaster:
             )
             return
 
-        capabilities_msg = {
-            "id": self.worker_id,
-            "capabilities": list(self.active_tasks),
-            "idle_count": 1 if self.is_idle else 0,
-            "timestamp": int(time.time() * 1000),
-        }
-
-        payload = json.dumps(capabilities_msg)
+        capabilities_msg = WorkerCapability(
+            worker_id= self.worker_id,
+            capabilities= list(self.active_tasks),
+            idle_count= 1 if self.is_idle else 0,
+            timestamp= int(time.time() * 1000),
+        )
+        
+        payload = capabilities_msg.model_dump_json()
         success = self.broadcaster.publish_retained(
             topic=self.topic, payload=payload, qos=1
         )
