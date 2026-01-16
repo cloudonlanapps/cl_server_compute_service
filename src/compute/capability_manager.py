@@ -8,7 +8,7 @@ import threading
 from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
 from cl_server_shared.config import Config
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from .schemas import CapabilityStats
 
@@ -19,7 +19,9 @@ _manager_lock = threading.Lock()
 class CapabilityMessage(BaseModel):
     """Structure of worker capability messages."""
 
-    id: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(validation_alias="worker_id")
     capabilities: list[str]
     idle_count: int
     timestamp: int
