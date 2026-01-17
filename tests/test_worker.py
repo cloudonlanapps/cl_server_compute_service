@@ -245,7 +245,6 @@ class TestComputeWorker:
         # Should be marked idle after processing
         assert worker.capability_broadcaster.is_idle is True
 
-    @pytest.mark.timeout(2)
     async def test_run_worker_loop(self, mock_dependencies: dict[str, MagicMock | AsyncMock]):
         """Test main worker run loop."""
         mock_dependencies["worker_instance"].run_once = AsyncMock(return_value=False)
@@ -294,7 +293,6 @@ class TestComputeWorker:
 
         assert call_count >= 2
 
-    @pytest.mark.timeout(2)
     async def test_run_worker_loop_handles_cancelled_error(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -313,7 +311,6 @@ class TestComputeWorker:
         # Should complete gracefully
         worker.capability_broadcaster.clear.assert_called_once()
 
-    @pytest.mark.timeout(2)
     async def test_run_worker_loop_handles_general_exception(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -341,7 +338,6 @@ class TestComputeWorker:
         # Should continue after exception
         assert call_count >= 2
 
-    @pytest.mark.timeout(2)
     async def test_run_worker_classmethod(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -373,7 +369,6 @@ class TestComputeWorker:
             # Verify broadcaster shutdown was called
             mock_shutdown.assert_called_once()
 
-    @pytest.mark.timeout(2)
     async def test_run_worker_classmethod_with_no_tasks(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):

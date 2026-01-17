@@ -23,18 +23,6 @@ from compute.schemas import (
 
 
 @pytest.fixture
-def test_db() -> Generator[Session, None, None]:
-    """Create test database."""
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
-    yield session
-    session.close()
-    Base.metadata.drop_all(engine)
-
-
-@pytest.fixture
 def app() -> FastAPI:
     """Create test FastAPI app."""
     test_app = FastAPI()
@@ -52,7 +40,7 @@ def client(app: FastAPI) -> TestClient:
 def mock_user() -> UserPayload:
     """Create mock authenticated user."""
     return UserPayload(
-        sub="test_user",
+        id="test_user",
         is_admin=False,
         permissions=["ai_inference_support"],
     )
@@ -62,7 +50,7 @@ def mock_user() -> UserPayload:
 def mock_admin() -> UserPayload:
     """Create mock admin user."""
     return UserPayload(
-        sub="admin_user",
+        id="admin_user",
         is_admin=True,
         permissions=["admin", "ai_inference_support"],
     )
@@ -71,15 +59,18 @@ def mock_admin() -> UserPayload:
 class TestGetJob:
     """Tests for GET /jobs/{job_id} endpoint."""
 
-    def test_get_job_success(self, client: TestClient, test_db: Session):
+    def test_get_job_success(self, client: TestClient, db_session: Session):
         """Test getting a job successfully."""
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         # Mock JobService.get_job to return a JobResponse
-        with patch("compute.auth.Config.AUTH_DISABLED", True):
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobService.get_job") as mock_get_job:
                 mock_get_job.return_value = JobResponse(
                     job_id="test-job-1",
@@ -107,16 +98,19 @@ class TestGetJob:
                 # Clean up
                 app.dependency_overrides.clear()
 
-    def test_get_job_not_found(self, client: TestClient, test_db: Session):
+    def test_get_job_not_found(self, client: TestClient, db_session: Session):
         """Test getting a non-existent job."""
         from fastapi import HTTPException
 
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
-        with patch("compute.auth.Config.AUTH_DISABLED", True):
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobService.get_job") as mock_get_job:
                 # Simulate job not found by raising HTTPException
                 mock_get_job.side_effect = HTTPException(
@@ -130,7 +124,7 @@ class TestGetJob:
                 # Clean up
                 app.dependency_overrides.clear()
 
-    def test_get_job_requires_auth(self, client: TestClient, test_db: Session):
+    def test_get_job_requires_auth(self, client: TestClient, db_session: Session):
         """Test that get_job requires authentication."""
         from fastapi import HTTPException
 
@@ -138,22 +132,26 @@ class TestGetJob:
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         def mock_auth():
             raise HTTPException(status_code=401, detail="Authentication required")
 
-        app.dependency_overrides[require_permission("ai_inference_support")] = mock_auth
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = True
+            app.dependency_overrides[require_permission("ai_inference_support")] = mock_auth
 
-        response = client.get("/jobs/test-job-1")
+            response = client.get("/jobs/test-job-1")
 
-        assert response.status_code == 401
+            assert response.status_code == 401
 
 
 class TestDeleteJob:
     """Tests for DELETE /jobs/{job_id} endpoint."""
 
-    def test_delete_job_success(self, client: TestClient, test_db: Session):
+    def test_delete_job_success(self, client: TestClient, db_session: Session):
         """Test deleting a job successfully."""
         # Create test job
         job = Job(
@@ -166,16 +164,17 @@ class TestDeleteJob:
             created_at=1234567890000,
             priority=5,
         )
-        test_db.add(job)
-        test_db.commit()
+        db_session.add(job)
+        db_session.commit()
 
         from compute.database import get_db
 
-        def get_test_db():
-            yield test_db
+        def override_get_db():
+            yield db_session
 
         # Mock the repository and file storage
-        with patch("compute.auth.Config.AUTH_DISABLED", True):
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobRepositoryService") as mock_repo_class:
                 with patch("compute.service.JobStorageService"):
                     mock_repo = MagicMock()
@@ -184,7 +183,7 @@ class TestDeleteJob:
                     mock_repo_class.return_value = mock_repo
 
                     app = cast(FastAPI, client.app)
-                    app.dependency_overrides[get_db] = get_test_db
+                    app.dependency_overrides[get_db] = override_get_db
 
                     response = client.delete("/jobs/test-job-2")
 
@@ -194,21 +193,22 @@ class TestDeleteJob:
                     app = cast(FastAPI, client.app)
                     app.dependency_overrides.clear()
 
-    def test_delete_job_not_found(self, client: TestClient, test_db: Session):
+    def test_delete_job_not_found(self, client: TestClient, db_session: Session):
         """Test deleting a non-existent job."""
         from compute.database import get_db
 
-        def get_test_db():
-            yield test_db
+        def override_get_db():
+            yield db_session
 
-        with patch("compute.auth.Config.AUTH_DISABLED", True):
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobRepositoryService") as mock_repo_class:
                 mock_repo = MagicMock()
                 mock_repo.get_job.return_value = None  # pyright: ignore[reportAny] ignore mock types for testing purposes
                 mock_repo_class.return_value = mock_repo
 
                 app = cast(FastAPI, client.app)
-                app.dependency_overrides[get_db] = get_test_db
+                app.dependency_overrides[get_db] = override_get_db
 
                 response = client.delete("/jobs/nonexistent-job")
 
@@ -223,14 +223,16 @@ class TestGetStorageSize:
     """Tests for GET /admin/jobs/storage/size endpoint."""
 
     def test_get_storage_size_success(
-        self, client: TestClient, test_db: Session, mock_admin: UserPayload
+        self, client: TestClient, db_session: Session, mock_admin: UserPayload
     ):
         """Test getting storage size as admin."""
         from compute.auth import require_admin
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[require_admin] = lambda: mock_admin
 
         with patch("compute.service.JobService.get_storage_size") as mock_get_storage:
@@ -246,7 +248,7 @@ class TestGetStorageSize:
             assert data.total_size == 1024000
             assert data.job_count == 42
 
-    def test_get_storage_size_requires_admin(self, client: TestClient, test_db: Session):
+    def test_get_storage_size_requires_admin(self, client: TestClient, db_session: Session):
         """Test that storage size endpoint requires admin."""
         from fastapi import HTTPException
 
@@ -254,7 +256,9 @@ class TestGetStorageSize:
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         def mock_admin_check():
             raise HTTPException(status_code=403, detail="Admin access required")
@@ -270,14 +274,16 @@ class TestCleanupOldJobs:
     """Tests for DELETE /admin/jobs/cleanup endpoint."""
 
     def test_cleanup_old_jobs_success(
-        self, client: TestClient, test_db: Session, mock_admin: UserPayload
+        self, client: TestClient, db_session: Session, mock_admin: UserPayload
     ):
         """Test cleanup old jobs as admin."""
         from compute.auth import require_admin
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[require_admin] = lambda: mock_admin
 
         with patch("compute.service.JobService.cleanup_old_jobs") as mock_cleanup:
@@ -294,14 +300,16 @@ class TestCleanupOldJobs:
             assert data.freed_space == 5242880
 
     def test_cleanup_old_jobs_custom_days(
-        self, client: TestClient, test_db: Session, mock_admin: UserPayload
+        self, client: TestClient, db_session: Session, mock_admin: UserPayload
     ):
         """Test cleanup with custom days parameter."""
         from compute.auth import require_admin
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[require_admin] = lambda: mock_admin
 
         with patch("compute.service.JobService.cleanup_old_jobs") as mock_cleanup:
@@ -315,7 +323,7 @@ class TestCleanupOldJobs:
             assert response.status_code == 200
             mock_cleanup.assert_called_once_with(30)
 
-    def test_cleanup_old_jobs_requires_admin(self, client: TestClient, test_db: Session):
+    def test_cleanup_old_jobs_requires_admin(self, client: TestClient, db_session: Session):
         """Test that cleanup endpoint requires admin."""
         from fastapi import HTTPException
 
@@ -323,7 +331,9 @@ class TestCleanupOldJobs:
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         def mock_admin_check():
             raise HTTPException(status_code=403, detail="Admin access required")
@@ -338,12 +348,14 @@ class TestCleanupOldJobs:
 class TestGetWorkerCapabilities:
     """Tests for GET /capabilities endpoint."""
 
-    def test_get_worker_capabilities_success(self, client: TestClient, test_db: Session):
+    def test_get_worker_capabilities_success(self, client: TestClient, db_session: Session):
         """Test getting worker capabilities."""
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         with patch("compute.service.CapabilityService.get_available_capabilities") as mock_get_caps:
             with patch("compute.service.CapabilityService.get_worker_count") as mock_get_count:
@@ -363,12 +375,14 @@ class TestGetWorkerCapabilities:
                 assert data.capabilities.root["image_resize"] == 2
                 assert data.capabilities.root["image_conversion"] == 1
 
-    def test_get_worker_capabilities_no_workers(self, client: TestClient, test_db: Session):
+    def test_get_worker_capabilities_no_workers(self, client: TestClient, db_session: Session):
         """Test getting capabilities when no workers available."""
         from compute.database import get_db
 
         app = cast(FastAPI, client.app)
-        app.dependency_overrides[get_db] = lambda: iter([test_db])
+        def override_get_db():
+            yield db_session
+        app.dependency_overrides[get_db] = override_get_db
 
         with patch("compute.service.CapabilityService.get_available_capabilities") as mock_get_caps:
             with patch("compute.service.CapabilityService.get_worker_count") as mock_get_count:

@@ -78,7 +78,7 @@ class TestCapabilityBroadcaster:
             payload = call_args[1]["payload"]  # pyright: ignore[reportAny] ignore mock types for testing purposes
             assert isinstance(payload, str)
             data: dict[str, object] = cast(dict[str, object], json.loads(payload))
-            assert data["id"] == "worker-1"
+            assert data["worker_id"] == "worker-1"
             assert set(cast(list[str], data["capabilities"])) == {
                 "image_resize",
                 "image_conversion",

@@ -30,39 +30,39 @@ class TestUserPayload:
     def test_user_payload_valid(self):
         """Test UserPayload with valid data."""
         user = UserPayload(
-            sub="user123",
+            id="user123",
             is_admin=False,
             permissions=["ai_inference_support"],
         )
 
-        assert user.sub == "user123"
+        assert user.id == "user123"
         assert user.is_admin is False
         assert user.permissions == ["ai_inference_support"]
 
     def test_user_payload_admin(self):
         """Test UserPayload for admin user."""
         user = UserPayload(
-            sub="admin123",
+            id="admin123",
             is_admin=True,
             permissions=["admin", "ai_inference_support"],
         )
 
-        assert user.sub == "admin123"
+        assert user.id == "admin123"
         assert user.is_admin is True
         assert "admin" in user.permissions
 
     def test_user_payload_defaults(self):
         """Test UserPayload default values."""
-        user = UserPayload(sub="user456", permissions=[])
+        user = UserPayload(id="user456", permissions=[])
 
-        assert user.sub == "user456"
+        assert user.id == "user456"
         assert user.is_admin is False
         assert user.permissions == []
 
     def test_user_payload_unique_permissions(self):
         """Test that duplicate permissions are removed."""
         user = UserPayload(
-            sub="user789",
+            id="user789",
             permissions=[
                 "ai_inference_support",
                 "admin",
@@ -79,13 +79,13 @@ class TestUserPayload:
         """Test that extra fields are ignored."""
         user = UserPayload.model_validate(
             {
-                "sub": "user999",
+                "id": "user999",
                 "permissions": [],
                 "extra_field": "ignored",
             }
         )
 
-        assert user.sub == "user999"
+        assert user.id == "user999"
         assert not hasattr(user, "extra_field")
 
     def test_user_payload_missing_required_field(self):
@@ -182,7 +182,7 @@ class TestGetCurrentUser:
     @pytest.mark.asyncio
     async def test_get_current_user_auth_disabled(self, mock_db):
         """Test get_current_user when auth is disabled (guest mode)."""
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False  # Guest mode
             user = await get_current_user(token="any-token", db=mock_db)
             assert user is None
@@ -190,7 +190,7 @@ class TestGetCurrentUser:
     @pytest.mark.asyncio
     async def test_get_current_user_no_token(self, mock_db):
         """Test get_current_user with no token provided."""
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             user = await get_current_user(token=None, db=mock_db)
             assert user is None
@@ -219,19 +219,19 @@ class TestGetCurrentUser:
 
         # Create valid JWT
         payload = {
-            "sub": "test_user",
+            "id": "test_user",
             "is_admin": False,
             "permissions": ["ai_inference_support"],
         }
         token = jwt.encode(payload, private_pem, algorithm="ES256")
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with patch("compute.auth.get_public_key", return_value=public_pem):
                 user = await get_current_user(token=token, db=mock_db)
 
                 assert user is not None
-                assert user.sub == "test_user"
+                assert user.id == "test_user"
                 assert user.is_admin is False
                 assert "ai_inference_support" in user.permissions
 
@@ -240,7 +240,7 @@ class TestGetCurrentUser:
         """Test get_current_user with invalid token."""
         public_key = "-----BEGIN PUBLIC KEY-----\nfake_key\n-----END PUBLIC KEY-----"
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with patch("compute.auth.get_public_key", return_value=public_key):
                 with pytest.raises(HTTPException) as exc_info:
@@ -258,7 +258,7 @@ class TestRequirePermission:
         """Test permission check when auth is disabled (guest mode)."""
         checker = require_permission("ai_inference_support")
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False  # Guest mode
             result = await checker(current_user=None, db=mock_db)
             assert result is None
@@ -268,7 +268,7 @@ class TestRequirePermission:
         """Test permission check when no user is authenticated."""
         checker = require_permission("ai_inference_support")
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await checker(current_user=None, db=mock_db)
@@ -281,12 +281,12 @@ class TestRequirePermission:
         """Test that admin users have all permissions."""
         checker = require_permission("ai_inference_support")
         admin_user = UserPayload(
-            sub="admin",
+            id="admin",
             is_admin=True,
             permissions=[],
         )
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await checker(current_user=admin_user, db=mock_db)
             assert result == admin_user
@@ -296,12 +296,12 @@ class TestRequirePermission:
         """Test user with required permission."""
         checker = require_permission("ai_inference_support")
         user = UserPayload(
-            sub="user",
+            id="user",
             is_admin=False,
             permissions=["ai_inference_support"],
         )
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await checker(current_user=user, db=mock_db)
             assert result == user
@@ -311,12 +311,12 @@ class TestRequirePermission:
         """Test user without required permission."""
         checker = require_permission("admin")
         user = UserPayload(
-            sub="user",
+            id="user",
             is_admin=False,
             permissions=["ai_inference_support"],
         )
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await checker(current_user=user, db=mock_db)
@@ -332,7 +332,7 @@ class TestRequireAdmin:
     @pytest.mark.asyncio
     async def test_require_admin_auth_disabled(self, mock_db):
         """Test admin check when auth is disabled (guest mode)."""
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False  # Guest mode
             result = await require_admin(current_user=None, db=mock_db)
             assert result is None
@@ -340,7 +340,7 @@ class TestRequireAdmin:
     @pytest.mark.asyncio
     async def test_require_admin_no_user(self, mock_db):
         """Test admin check when no user is authenticated."""
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await require_admin(current_user=None, db=mock_db)
@@ -352,12 +352,12 @@ class TestRequireAdmin:
     async def test_require_admin_admin_user(self, mock_db):
         """Test admin check with admin user."""
         admin_user = UserPayload(
-            sub="admin",
+            id="admin",
             is_admin=True,
             permissions=["admin"],
         )
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await require_admin(current_user=admin_user, db=mock_db)
             assert result == admin_user
@@ -366,12 +366,12 @@ class TestRequireAdmin:
     async def test_require_admin_non_admin_user(self, mock_db):
         """Test admin check with non-admin user."""
         user = UserPayload(
-            sub="user",
+            id="user",
             is_admin=False,
             permissions=["ai_inference_support"],
         )
 
-        with patch("compute.auth.ConfigService") as mock_config:
+        with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await require_admin(current_user=user, db=mock_db)

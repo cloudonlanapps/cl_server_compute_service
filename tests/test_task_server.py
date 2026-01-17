@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.openapi.models import OpenAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from compute.schemas import RootResponse
 from compute.task_server import app
@@ -46,43 +47,41 @@ class TestTaskServerApp:
 
     def test_root_endpoint(self, client: TestClient):
         """Test root health check endpoint."""
-        response = client.get("/")
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
+            response = client.get("/")
 
-        assert response.status_code == 200
-        data = RootResponse.model_validate(response.json())
-        assert data.status == "healthy"
-        assert data.service == "Task Server"
-        assert data.version == "v1"
+            assert response.status_code == 200
+            data = RootResponse.model_validate(response.json())
+            assert data.status == "healthy"
+            assert data.service == "Task Server"
+            assert data.version == "v1"
 
     def test_root_response_schema(self, client: TestClient):
         """Test root endpoint response matches schema."""
-        response = client.get("/")
+        with patch("compute.config_service.ConfigService") as mock_config:
+            mock_config.return_value.get_auth_enabled.return_value = False
+            response = client.get("/")
 
-        # validate with Pydantic model
-        _ = RootResponse.model_validate(response.json())
+            # validate with Pydantic model
+            _ = RootResponse.model_validate(response.json())
 
-    def test_http_exception_handler(self, client: TestClient):
+    def test_http_exception_handler(self, client: TestClient, db_session: Session):
         """Test HTTP exception handler preserves error format."""
         # Try to access non-existent job (will trigger HTTPException)
         with patch("compute.service.JobService.get_job") as mock_get_job:
             from fastapi import HTTPException
 
-            mock_get_job.side_effect = HTTPException(status_code=404, detail="Job not found")
-
-            # Override dependencies to allow test to run
-            from cl_server_shared.models import Base
-            from sqlalchemy import create_engine
-            from sqlalchemy.orm import sessionmaker
-
             from compute.database import get_db
 
-            engine = create_engine("sqlite:///:memory:")
-            Base.metadata.create_all(engine)
-            SessionLocal = sessionmaker(bind=engine)
-            test_db = SessionLocal()
+            mock_get_job.side_effect = HTTPException(status_code=404, detail="Job not found")
 
-            with patch("compute.auth.Config.AUTH_DISABLED", True):
-                app.dependency_overrides[get_db] = lambda: iter([test_db])
+            def override_get_db():
+                yield db_session
+
+            with patch("compute.config_service.ConfigService") as mock_config:
+                mock_config.return_value.get_auth_enabled.return_value = False
+                app.dependency_overrides[get_db] = override_get_db
 
                 response = client.get("/jobs/test-job")
 
@@ -91,7 +90,6 @@ class TestTaskServerApp:
                 assert "detail" in error_data
 
                 # Clean up
-                test_db.close()
                 app.dependency_overrides.clear()
 
     def test_shutdown_event_closes_capability_manager(self):
@@ -100,13 +98,14 @@ class TestTaskServerApp:
 
         from compute.task_server import lifespan
 
-        with patch("compute.capability_manager.close_capability_manager") as mock_close:
-            # Test lifespan context manager shutdown
-            async def run_lifespan():
-                async with lifespan(app):
-                    pass  # Shutdown happens when exiting the context
+        with patch("compute.database.check_tables_exist"):
+            with patch("compute.capability_manager.close_capability_manager") as mock_close:
+                # Test lifespan context manager shutdown
+                async def run_lifespan():
+                    async with lifespan(app):
+                        pass  # Shutdown happens when exiting the context
 
-            asyncio.run(run_lifespan())
+                asyncio.run(run_lifespan())
 
             mock_close.assert_called_once()
 

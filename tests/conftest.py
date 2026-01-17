@@ -7,6 +7,9 @@ from cl_server_shared.models import Base
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+# Import ServiceConfig to ensure its table is created
+from compute.models import ServiceConfig  # noqa: F401
+
 
 @pytest.fixture
 def db_engine() -> Generator[Engine, None, None]:
