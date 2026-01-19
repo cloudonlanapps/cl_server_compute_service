@@ -74,7 +74,7 @@ class ComputeConfig:
         # Determine public key path
         pub_key = getattr(args, "public_key_path", "")
         if not pub_key and cl_server_dir:
-            pub_key = str(Path(cl_server_dir) / "public_key.pem")
+            pub_key = str(Path(cl_server_dir) / "keys" / "public_key.pem")
 
         return cls(
             host=getattr(args, "host", "0.0.0.0"),
