@@ -6,9 +6,12 @@ import json
 import threading
 
 from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
-from cl_server_shared.config import Config
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .config import ComputeConfig
 
 from .schemas import CapabilityStats
 
@@ -40,21 +43,26 @@ class CapabilityManager:
     - Same caching and aggregation logic
     """
 
-    def __init__(self):
-        """Initialize capability manager with broadcaster."""
+    def __init__(self, config: ComputeConfig):
+        """Initialize capability manager with broadcaster.
+
+        Args:
+            config: Compute service configuration
+        """
         self.capabilities_cache: dict[str, CapabilityMessage] = {}
         self.cache_lock: threading.Lock = threading.Lock()
         self.ready_event: threading.Event = threading.Event()
+        self.config = config
 
         # Get broadcaster from cl_ml_tools
         self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
-            broadcast_type=Config.BROADCAST_TYPE,
-            broker=Config.MQTT_BROKER,
-            port=Config.MQTT_PORT,
+            broadcast_type=config.broadcast_type,
+            broker=config.mqtt_broker,
+            port=config.mqtt_port,
         )
 
         # Subscribe to worker capability topics
-        topic_pattern = f"{Config.CAPABILITY_TOPIC_PREFIX}/+"
+        topic_pattern = f"{config.capability_topic_prefix}/+"
 
         if self.broadcaster:
             _ = self.broadcaster.subscribe(
@@ -122,16 +130,14 @@ class CapabilityManager:
         return CapabilityStats(root=aggregated)
 
     def wait_for_capabilities(
-        self, timeout: int = Config.CAPABILITY_CACHE_TIMEOUT
+        self, timeout: int = 15
     ) -> bool:
         """Wait for capability manager to be ready.
 
         Args:
             timeout: Maximum seconds to wait
-
-        Returns:
-            True if ready, False if timeout
         """
+        # Note: CAPABILITY_CACHE_TIMEOUT was removed from shared config, using default 15s
         return self.ready_event.wait(timeout=timeout)
 
     def get_worker_count_by_capability(self) -> CapabilityStats:
@@ -164,14 +170,25 @@ class CapabilityManager:
             logger.error(f"Error disconnecting from broadcaster: {e}")
 
 
-def get_capability_manager() -> CapabilityManager:
-    """Get or create singleton CapabilityManager instance."""
+def initialize_capability_manager(config: ComputeConfig) -> CapabilityManager:
+    """Initialize singleton CapabilityManager instance."""
     global _capability_manager_instance
 
+    with _manager_lock:
+        if _capability_manager_instance is None:
+            _capability_manager_instance = CapabilityManager(config)
+    
+    return _capability_manager_instance
+
+
+def get_capability_manager() -> CapabilityManager:
+    """Get singleton CapabilityManager instance.
+    
+    Raises:
+        RuntimeError: If initialize_capability_manager hasn't been called.
+    """
     if _capability_manager_instance is None:
-        with _manager_lock:
-            if _capability_manager_instance is None:
-                _capability_manager_instance = CapabilityManager()
+        raise RuntimeError("CapabilityManager not initialized. Call initialize_capability_manager first.")
     return _capability_manager_instance
 
 

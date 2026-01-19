@@ -1,9 +1,8 @@
-"""Tests for FastAPI application."""
-
+import pytest
 from typing import cast
 from unittest.mock import MagicMock, patch
 
-import pytest
+from fastapi import FastAPI
 from fastapi.openapi.models import OpenAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -12,7 +11,7 @@ from compute.database import init_db, SessionLocal
 import compute.database
 from compute.models import Base
 from compute.schemas import RootResponse
-from compute.task_server import app
+from compute.task_server import create_app
 
 
 @pytest.fixture
@@ -29,26 +28,26 @@ def mock_config():
 @pytest.fixture
 def client(mock_config) -> TestClient:
     """Create test client."""
-    # Initialize database with mock config (which has valid sqlite url)
-    # We must do this before TestClient(app) because app lifespan runs check_tables_exist
+    # Create app using factory with mock config
+    app = create_app(mock_config)
     
-    # Check if already initialized (by other tests?)
-    # We want a fresh start for this test file ideally, but global state...
-    # Let's force re-init or just ensure tables exist.
+    # create_app calls init_db, so compute.database.engine is set
     
-    # Reset globals to ensure clean init
-    compute.database.engine = None
-    compute.database.SessionLocal = None
-    
-    init_db(mock_config)
-    
-    # Create tables
+    # Create tables on the initialized engine
     if compute.database.engine:
         Base.metadata.create_all(bind=compute.database.engine)
     
-    with patch("compute.database.check_tables_exist"):
-        with TestClient(app) as client:
-            yield client
+    # Create tables on the initialized engine
+    if compute.database.engine:
+        Base.metadata.create_all(bind=compute.database.engine)
+        # Manually create alembic_version table to satisfy check_tables_exist
+        from sqlalchemy import text
+        with compute.database.engine.connect() as conn:
+            conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)"))
+            conn.commit()
+    
+    with TestClient(app) as client:
+        yield client
     
     # Cleanup
     if compute.database.engine:
@@ -60,14 +59,17 @@ def client(mock_config) -> TestClient:
 class TestTaskServerApp:
     """Tests for Task Server FastAPI application."""
 
-    def test_app_exists(self):
+    def test_app_exists(self, mock_config):
         """Test that app is created."""
+        app = create_app(mock_config)
         assert app is not None
         assert app.title == "Task Server"
         assert app.version == "v1"
 
-    def test_app_includes_routers(self):
+    def test_app_includes_routers(self, mock_config):
         """Test that app includes required routers."""
+        app = create_app(mock_config)
+        
         # Check that routes are registered
         routes = [getattr(route, "path") for route in app.routes if hasattr(route, "path")]
 
@@ -110,7 +112,6 @@ class TestTaskServerApp:
         # Try to access non-existent job (will trigger HTTPException)
         with patch("compute.service.JobService.get_job") as mock_get_job:
             from fastapi import HTTPException
-
             from compute.database import get_db
 
             mock_get_job.side_effect = HTTPException(status_code=404, detail="Job not found")
@@ -118,8 +119,11 @@ class TestTaskServerApp:
             def override_get_db():
                 yield db_session
 
-            with patch("compute.config_service.ConfigService") as mock_config:
-                mock_config.return_value.get_auth_enabled.return_value = False
+            # Get the app instance from client
+            app = cast(FastAPI, client.app)
+            
+            with patch("compute.config_service.ConfigService") as mock_config_svc:
+                mock_config_svc.return_value.get_auth_enabled.return_value = False
                 app.dependency_overrides[get_db] = override_get_db
 
                 response = client.get("/jobs/test-job")
@@ -131,29 +135,48 @@ class TestTaskServerApp:
                 # Clean up
                 app.dependency_overrides.clear()
 
-    def test_shutdown_event_closes_capability_manager(self):
+    def test_shutdown_event_closes_capability_manager(self, mock_config):
         """Test that lifespan shutdown closes capability manager."""
         import asyncio
 
-        from compute.task_server import lifespan
+        # Reset engine to ensure clean start
+        compute.database.engine = None
+        compute.database.SessionLocal = None
 
-        with patch("compute.database.check_tables_exist"):
-            with patch("compute.capability_manager.close_capability_manager") as mock_close:
-                # Test lifespan context manager shutdown
-                async def run_lifespan():
-                    async with lifespan(app):
-                        pass  # Shutdown happens when exiting the context
+        app = create_app(mock_config)
+        
+        # We need tables for startup check
+        if compute.database.engine:
+            Base.metadata.create_all(bind=compute.database.engine)
+            # Manually create alembic_version table
+            from sqlalchemy import text
+            with compute.database.engine.connect() as conn:
+                conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)"))
+                conn.commit()
 
-                asyncio.run(run_lifespan())
+        with patch("compute.capability_manager.close_capability_manager") as mock_close:
+            # Test lifespan context manager shutdown
+            async def run_lifespan():
+                async with app.router.lifespan_context(app):
+                    pass  # Shutdown happens when exiting the context
 
-            mock_close.assert_called_once()
+            asyncio.run(run_lifespan())
 
-    def test_plugin_router_included(self):
+        mock_close.assert_called_once()
+        
+        # Cleanup
+        if compute.database.engine:
+            Base.metadata.drop_all(bind=compute.database.engine)
+        compute.database.engine = None
+        compute.database.SessionLocal = None
+        
+        if compute.database.engine:
+            Base.metadata.drop_all(bind=compute.database.engine)
+
+    def test_plugin_router_included(self, mock_config):
         """Test that plugin router is included in app."""
-        # The plugin router is created and included
-        # We verify this indirectly by checking that create_compute_plugin_router was called
-        # This is already tested in test_plugins.py, so here we just verify the app structure
-
+        app = create_app(mock_config)
+        
         # Check that app has expected number of routers
         # app should include: main router + plugin router
         assert len(app.router.routes) > 0

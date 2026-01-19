@@ -35,15 +35,12 @@ class ComputeConfig:
     broadcast_type: str = "redis" # Default to redis as per shared config, or mqtt? Shared config says BROADCAST_TYPE.
 
     # Database
-    database_url: str = "sqlite:///compute.db"
+    database_url: str = ""
 
     # Security
     auth_disabled: bool = False
 
-    @property
-    def worker_database_url(self) -> str:
-        """Alias for database_url, used by some shared logic."""
-        return self.database_url
+
 
     @classmethod
     def from_cli_args(cls, args: object | None = None) -> ComputeConfig:
@@ -67,14 +64,11 @@ class ComputeConfig:
         if not compute_storage_dir and cl_server_dir:
             compute_storage_dir = str(Path(cl_server_dir) / "compute")
         
-        # Determine database URL
-        db_url = getattr(args, "database_url", "")
-        if not db_url:
-            # Fallback to default in CL_SERVER_DIR if not provided
-            if cl_server_dir:
-                db_url = f"sqlite:///{Path(cl_server_dir) / 'compute.db'}"
-            else:
-                db_url = "sqlite:///compute.db"
+        # Determine database URL - strictly derived from CL_SERVER_DIR
+        if cl_server_dir:
+            db_url = f"sqlite:///{Path(cl_server_dir) / 'compute.db'}"
+        else:
+            raise ValueError("CL_SERVER_DIR environment variable is required to determine database URL")
 
         # Determine public key path
         pub_key = getattr(args, "public_key_path", "")

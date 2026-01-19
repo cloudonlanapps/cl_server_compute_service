@@ -16,12 +16,12 @@ from types import FrameType
 from typing import TYPE_CHECKING
 
 from cl_ml_tools import Worker, shutdown_broadcaster
-from cl_server_shared import JobStorageService
-from cl_server_shared.shared_db import JobRepositoryService
 from loguru import logger
 
 from .capability_broadcaster import CapabilityBroadcaster
 from . import database
+from .repository import JobRepositoryService
+from .storage import JobStorageService
 
 if TYPE_CHECKING:
     from .config import ComputeConfig
@@ -92,7 +92,11 @@ class ComputeWorker:
         if not database.SessionLocal:
              raise RuntimeError("Database not initialized. Call database.init_db() first.")
              
-        self.repository: JobRepositoryService = JobRepositoryService(database.SessionLocal)
+        self.repository: JobRepositoryService = JobRepositoryService(database.SessionLocal, config)
+        
+        if not config.compute_storage_dir:
+            raise ValueError("Compute storage directory not configured")
+            
         self.job_storage: JobStorageService = JobStorageService(base_dir=config.compute_storage_dir)
 
         # Create cl_ml_tools Worker (auto-discovers plugins)

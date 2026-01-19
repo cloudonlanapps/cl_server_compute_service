@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-
-from cl_server_shared import Config, JobStorageService
-from cl_server_shared.shared_db import JobRepositoryService
+from typing import TYPE_CHECKING
 from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -14,25 +12,37 @@ from sqlalchemy.orm import Session
 from .database import SessionLocal
 from .models import Job
 from .schemas import CapabilityStats, CleanupResult, JobResponse, StorageInfo
+from .repository import JobRepositoryService
+from .storage import JobStorageService
+
+if TYPE_CHECKING:
+    from .config import ComputeConfig
 
 
 class JobService:
     """Service layer for job management."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, config: ComputeConfig):
         """Initialize the job service.
 
         Args:
             db: SQLAlchemy database session
+            config: Compute service configuration
         """
         self.db: Session = db
+        self.config = config
+        
         # Create repository adapter
-        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal)
-        # Use COMPUTE_STORAGE_DIR for job files (organized per job)
+        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal, config)
+        
+        # Use compute_storage_dir for job files (organized per job)
+        if not config.compute_storage_dir:
+             raise ValueError("Compute storage directory not configured")
+             
         self.file_storage: JobStorageService = JobStorageService(
-            base_dir=Config.COMPUTE_STORAGE_DIR
+            base_dir=config.compute_storage_dir
         )
-        self.storage_base: Path = Path(Config.COMPUTE_STORAGE_DIR)
+        self.storage_base: Path = Path(config.compute_storage_dir)
 
     def get_job(self, job_id: str) -> JobResponse:
         """Get job status and results.

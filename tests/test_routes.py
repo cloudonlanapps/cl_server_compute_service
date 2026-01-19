@@ -5,7 +5,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
-from cl_server_shared.models import Base, Job
+from compute.models import Base, Job
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

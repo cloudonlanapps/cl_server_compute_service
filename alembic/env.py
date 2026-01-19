@@ -1,4 +1,3 @@
-# Import the Base and models for autogenerate support
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -10,15 +9,15 @@ from alembic import context
 # Add parent directory to path to import compute module
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from cl_server_shared.config import Config as AppConfig
-from cl_server_shared.models import Base
+from src.compute.models import Base
+from src.compute.utils import get_db_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the database URL from config
-config.set_main_option("sqlalchemy.url", AppConfig.WORKER_DATABASE_URL)
+# set sqlalchemy.url in configuration
+config.set_main_option("sqlalchemy.url", get_db_url())
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

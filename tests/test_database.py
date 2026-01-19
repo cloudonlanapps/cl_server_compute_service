@@ -75,17 +75,26 @@ class TestCreateDbEngine:
         assert engine.echo is True
 
     def test_create_db_engine_sqlite_registers_wal_listener(self):
-        """Test that WAL mode listener is registered for SQLite."""
-        database_url = "sqlite:///:memory:"
+        """Test that WAL mode listener is registered for file-based SQLite."""
+        database_url = "sqlite:////tmp/test.db"
 
         with patch("compute.database.event.listen") as mock_listen:
             _ = create_db_engine(database_url)
 
             # Verify enable_wal_mode was registered as a listener
-            # SQLAlchemy may call event.listen multiple times for internal purposes
-            # We just need to verify our listener was registered
             calls = [str(call) for call in mock_listen.call_args_list]
             assert any("enable_wal_mode" in str(call) for call in calls)
+
+    def test_create_db_engine_sqlite_memory_no_wal_listener(self):
+        """Test that WAL mode listener is NOT registered for in-memory SQLite."""
+        database_url = "sqlite:///:memory:"
+
+        with patch("compute.database.event.listen") as mock_listen:
+            _ = create_db_engine(database_url)
+
+            # verify enable_wal_mode was NOT registered
+            calls = [str(call) for call in mock_listen.call_args_list]
+            assert not any("enable_wal_mode" in str(call) for call in calls)
 
     def test_create_db_engine_non_sqlite(self):
         """Test that non-SQLite databases don't get WAL listener."""

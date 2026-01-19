@@ -22,8 +22,6 @@ class Args(Namespace):
     tasks: str | None
     log_level: str
     server_port: int
-    database_url: str
-    cl_server_dir: str
 
     def __init__(
         self,
@@ -31,25 +29,16 @@ class Args(Namespace):
         tasks: str | None = None,
         log_level: str = "INFO",
         server_port: int = 8002,
-        database_url: str = "",
-        cl_server_dir: str = "",
     ) -> None:
         super().__init__()
         self.worker_id = worker_id
         self.tasks = tasks
         self.log_level = log_level
         self.server_port = server_port
-        self.database_url = database_url
-        self.cl_server_dir = cl_server_dir
 
 
 def main() -> int:
     """CLI entry point for worker."""
-    # Get defaults from env before importing Config
-    default_worker_id = os.getenv("WORKER_ID", "worker-default")
-    default_log_level = os.getenv("LOG_LEVEL", "INFO")
-    default_server_port = int(os.getenv("COMPUTE_SERVER_PORT", "8002"))
-
     parser = ArgumentParser(
         prog="compute-worker",
         description="Compute worker for task execution",
@@ -57,8 +46,8 @@ def main() -> int:
     _ = parser.add_argument(
         "--worker-id",
         "-w",
-        default=default_worker_id,
-        help=f"Unique worker identifier (default: {default_worker_id})",
+        default="worker-default",
+        help="Unique worker identifier (default: worker-default)",
     )
     _ = parser.add_argument(
         "--tasks",
@@ -69,27 +58,17 @@ def main() -> int:
     _ = parser.add_argument(
         "--log-level",
         "-l",
-        default=default_log_level,
+        default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        help=f"Logging level (default: {default_log_level})",
+        help="Logging level (default: INFO)",
     )
     _ = parser.add_argument(
         "--port",
         "-p",
         type=int,
-        default=default_server_port,
-        help=f"Compute server port (default: {default_server_port})",
+        default=8002,
+        help="Compute server port (default: 8002)",
         dest="server_port",
-    )
-    _ = parser.add_argument(
-        "--database-url",
-        default=os.getenv("WORKER_DATABASE_URL", ""),
-        help="Database URL (default: sqlite:///compute.db)",
-    )
-    _ = parser.add_argument(
-        "--cl-server-dir", 
-        default=os.getenv("CL_SERVER_DIR", ""),
-        help="Root directory for CoLAN Server data"
     )
 
     args = parser.parse_args(namespace=Args())
@@ -107,13 +86,13 @@ def main() -> int:
         print(f"WARNING: Server check failed: {e}")
         print("Worker may fail if database/dirs are not ready.")
 
-    # Ensure CL_SERVER_DIR exists if provided
-    if args.cl_server_dir:
-        cl_dir = Path(args.cl_server_dir)
-        if not cl_dir.exists():
-            print(f"WARNING: --cl-server-dir {cl_dir} does not exist.")
-        else:
-             os.environ["CL_SERVER_DIR"] = str(cl_dir)
+    # Check that CL_SERVER_DIR is valid (worker expects it to exist)
+    # This handles the strict env check internally
+    from .utils import ensure_cl_server_dir
+    try:
+        ensure_cl_server_dir(create_if_missing=False)
+    except SystemExit:
+        return 1
     
     # Initialize Config
     from .config import ComputeConfig

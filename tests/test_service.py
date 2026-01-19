@@ -7,13 +7,22 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from cl_server_shared.models import Base, Job
+from compute.models import Base, Job
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from compute.schemas import CapabilityStats
 from compute.service import CapabilityService, JobService
+from compute.config import ComputeConfig
+
+
+@pytest.fixture
+def mock_config(temp_storage_dir: Path) -> ComputeConfig:
+    """Create mock configuration."""
+    config = MagicMock(spec=ComputeConfig)
+    config.compute_storage_dir = str(temp_storage_dir)
+    return config
 
 
 @pytest.fixture
@@ -38,16 +47,17 @@ def temp_storage_dir() -> Generator[Path, None, None]:
 class TestJobService:
     """Tests for JobService."""
 
-    def test_job_service_init(self, test_db: Session):
+    def test_job_service_init(self, test_db: Session, mock_config: ComputeConfig):
         """Test JobService initialization."""
-        service = JobService(test_db)
+        service = JobService(test_db, mock_config)
 
         assert service.db == test_db
+        assert service.config == mock_config
         assert service.repository is not None
         assert service.file_storage is not None
         assert service.storage_base is not None
 
-    def test_get_job_success(self, test_db: Session):
+    def test_get_job_success(self, test_db: Session, mock_config: ComputeConfig):
         """Test getting a job that exists."""
         # Create test job in database
         job = Job(
@@ -64,7 +74,8 @@ class TestJobService:
         test_db.commit()
 
         # Get job using service
-        service = JobService(test_db)
+        # Get job using service
+        service = JobService(test_db, mock_config)
         result = service.get_job("test-job-1")
 
         assert result.job_id == "test-job-1"
@@ -72,9 +83,9 @@ class TestJobService:
         assert result.status == "queued"
         assert result.params == {"key": "value"}
 
-    def test_get_job_not_found(self, test_db: Session):
+    def test_get_job_not_found(self, test_db: Session, mock_config: ComputeConfig):
         """Test getting a job that doesn't exist."""
-        service = JobService(test_db)
+        service = JobService(test_db, mock_config)
 
         with pytest.raises(HTTPException) as exc_info:
             _ = service.get_job("nonexistent-job")
@@ -82,7 +93,7 @@ class TestJobService:
         assert exc_info.value.status_code == 404
         assert "not found" in exc_info.value.detail.lower()
 
-    def test_get_job_with_all_fields(self, test_db: Session):
+    def test_get_job_with_all_fields(self, test_db: Session, mock_config: ComputeConfig):
         """Test getting a job with all fields populated."""
         job = Job(
             job_id="test-job-2",
@@ -99,7 +110,7 @@ class TestJobService:
         test_db.add(job)
         test_db.commit()
 
-        service = JobService(test_db)
+        service = JobService(test_db, mock_config)
         result = service.get_job("test-job-2")
 
         assert result.progress == 100
@@ -108,7 +119,7 @@ class TestJobService:
         assert result.completed_at == 1234567891000
         assert result.priority == 7
 
-    def test_delete_job_success(self, test_db: Session):
+    def test_delete_job_success(self, test_db: Session, mock_config: ComputeConfig):
         """Test deleting a job."""
         # Create test job
         job = Job(
@@ -124,7 +135,7 @@ class TestJobService:
         test_db.add(job)
         test_db.commit()
 
-        service = JobService(test_db)
+        service = JobService(test_db, mock_config)
 
         # Mock repository and file storage
         with patch.object(service.repository, "get_job", return_value=job):
@@ -136,9 +147,9 @@ class TestJobService:
                     mock_delete.assert_called_once_with("test-job-3")
                     mock_remove.assert_called_once_with("test-job-3")
 
-    def test_delete_job_not_found(self, test_db: Session):
+    def test_delete_job_not_found(self, test_db: Session, mock_config: ComputeConfig):
         """Test deleting a job that doesn't exist."""
-        service = JobService(test_db)
+        service = JobService(test_db, mock_config)
 
         with patch.object(service.repository, "get_job", return_value=None):
             with pytest.raises(HTTPException) as exc_info:
@@ -146,16 +157,15 @@ class TestJobService:
 
             assert exc_info.value.status_code == 404
 
-    def test_get_storage_size_empty(self, test_db: Session, temp_storage_dir: Path):
+    def test_get_storage_size_empty(self, test_db: Session, mock_config: ComputeConfig):
         """Test get_storage_size with no jobs."""
-        with patch("compute.service.Config.COMPUTE_STORAGE_DIR", str(temp_storage_dir)):
-            service = JobService(test_db)
-            result = service.get_storage_size()
+        service = JobService(test_db, mock_config)
+        result = service.get_storage_size()
 
-            assert result.total_size == 0
-            assert result.job_count == 0
+        assert result.total_size == 0
+        assert result.job_count == 0
 
-    def test_get_storage_size_with_jobs(self, test_db: Session, temp_storage_dir: Path):
+    def test_get_storage_size_with_jobs(self, test_db: Session, mock_config: ComputeConfig, temp_storage_dir: Path):
         """Test get_storage_size with jobs."""
         # Create job directories with files
         jobs_dir = temp_storage_dir / "jobs"
@@ -169,23 +179,21 @@ class TestJobService:
         job2_dir.mkdir()
         _ = (job2_dir / "file2.txt").write_text("test content 2")
 
-        with patch("compute.service.Config.COMPUTE_STORAGE_DIR", str(temp_storage_dir)):
-            service = JobService(test_db)
-            result = service.get_storage_size()
+        service = JobService(test_db, mock_config)
+        result = service.get_storage_size()
 
-            assert result.total_size > 0
-            assert result.job_count == 2
+        assert result.total_size > 0
+        assert result.job_count == 2
 
-    def test_cleanup_old_jobs_no_old_jobs(self, test_db: Session, temp_storage_dir: Path):
+    def test_cleanup_old_jobs_no_old_jobs(self, test_db: Session, mock_config: ComputeConfig):
         """Test cleanup when no old jobs exist."""
-        with patch("compute.service.Config.COMPUTE_STORAGE_DIR", str(temp_storage_dir)):
-            service = JobService(test_db)
-            result = service.cleanup_old_jobs(days=7)
+        service = JobService(test_db, mock_config)
+        result = service.cleanup_old_jobs(days=7)
 
-            assert result.deleted_count == 0
-            assert result.freed_space == 0
+        assert result.deleted_count == 0
+        assert result.freed_space == 0
 
-    def test_cleanup_old_jobs_with_old_jobs(self, test_db: Session, temp_storage_dir: Path):
+    def test_cleanup_old_jobs_with_old_jobs(self, test_db: Session, mock_config: ComputeConfig, temp_storage_dir: Path):
         """Test cleanup with old jobs."""
         import time
 
@@ -219,16 +227,15 @@ class TestJobService:
         test_db.add(old_job)
         test_db.commit()
 
-        with patch("compute.service.Config.COMPUTE_STORAGE_DIR", str(temp_storage_dir)):
-            service = JobService(test_db)
+        service = JobService(test_db, mock_config)
 
-            with patch.object(service.repository, "delete_job", return_value=None):
-                with patch.object(service.file_storage, "remove", return_value=None):
-                    result = service.cleanup_old_jobs(days=7)
+        with patch.object(service.repository, "delete_job", return_value=None):
+            with patch.object(service.file_storage, "remove", return_value=None):
+                result = service.cleanup_old_jobs(days=7)
 
-                    assert result.deleted_count >= 0
-                    # File should have been counted
-                    assert result.freed_space > 0
+                assert result.deleted_count >= 0
+                # File should have been counted
+                assert result.freed_space > 0
 
 
 class TestCapabilityService:

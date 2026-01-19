@@ -11,66 +11,19 @@ from loguru import logger
 from alembic import command
 
 
-def ensure_cl_server_dir() -> Path:
+def ensure_cl_server_dir(create_if_missing: bool = True) -> Path:
     """Ensure CL_SERVER_DIR exists and is writable.
 
-    Creates the directory if it doesn't exist.
+    Args:
+        create_if_missing: If True, create directory if it doesn't exist.
+                          If False, fail if directory doesn't exist.
 
     Returns:
         Path to CL_SERVER_DIR
 
     Raises:
-        SystemExit: If directory cannot be created or is not writable
-    """
-    cl_server_dir = os.getenv("CL_SERVER_DIR")
-
-    if not cl_server_dir:
-        print(
-            "ERROR: CL_SERVER_DIR environment variable is not set.\n"
-            + "Please set it to a valid directory path.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-
-    dir_path = Path(cl_server_dir)
-
-    # Try to create directory if it doesn't exist
-    if not dir_path.exists():
-        try:
-            dir_path.mkdir(parents=True, exist_ok=True)
-            print(f"Created CL_SERVER_DIR: {dir_path}")
-        except (OSError, PermissionError) as e:
-            print(
-                f"ERROR: Failed to create CL_SERVER_DIR: {dir_path}\n"
-                + f"Reason: {e}\n"
-                + "Please ensure the parent directory exists and you have write permissions.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-
-    # Check if directory is writable
-    if not os.access(dir_path, os.W_OK):
-        print(
-            f"ERROR: CL_SERVER_DIR exists but is not writable: {dir_path}\n"
-            + "Please ensure you have write permissions.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-
-    return dir_path
-
-
-def validate_cl_server_dir_exists() -> Path:
-    """Validate that CL_SERVER_DIR exists and is accessible.
-
-    This is used by worker to ensure the server has set up the directory.
-    Does NOT create the directory - expects server to have created it.
-
-    Returns:
-        Path to CL_SERVER_DIR
-
-    Raises:
-        SystemExit: If directory doesn't exist or is not accessible
+        SystemExit: If environment variable missing, directory missing (and not creating),
+                   creation fails, or permissions invalid.
     """
     cl_server_dir = os.getenv("CL_SERVER_DIR")
 
@@ -85,17 +38,32 @@ def validate_cl_server_dir_exists() -> Path:
 
     dir_path = Path(cl_server_dir)
 
-    # Check if directory exists
+    # Check existence
     if not dir_path.exists():
-        print(
-            f"ERROR: CL_SERVER_DIR does not exist: {dir_path}\n"
-            + "Please ensure:\n"
-            + "  1. The compute server has been started at least once, OR\n"
-            + "  2. The directory has been created manually\n"
-            + f"Run: mkdir -p {dir_path}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
+        if create_if_missing:
+            # Try to create directory
+            try:
+                dir_path.mkdir(parents=True, exist_ok=True)
+                print(f"Created CL_SERVER_DIR: {dir_path}")
+            except (OSError, PermissionError) as e:
+                print(
+                    f"ERROR: Failed to create CL_SERVER_DIR: {dir_path}\n"
+                    + f"Reason: {e}\n"
+                    + "Please ensure the parent directory exists and you have write permissions.",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+        else:
+            # Not creating, so fail
+            print(
+                f"ERROR: CL_SERVER_DIR does not exist: {dir_path}\n"
+                + "Please ensure:\n"
+                + "  1. The compute server has been started at least once, OR\n"
+                + "  2. The directory has been created manually\n"
+                + f"Run: mkdir -p {dir_path}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
     # Check if it's a directory
     if not dir_path.is_dir():
@@ -106,7 +74,7 @@ def validate_cl_server_dir_exists() -> Path:
         )
         raise SystemExit(1)
 
-    # Check if directory is accessible
+    # Check if directory is accessible (Read & Write required for DB/Logs)
     if not os.access(dir_path, os.R_OK | os.W_OK):
         print(
             f"ERROR: CL_SERVER_DIR exists but is not accessible: {dir_path}\n"
@@ -227,3 +195,9 @@ def run_migrations() -> None:
         msg = f"Failed to run database migrations: {e}"
         logger.error(msg)
         raise RuntimeError(msg) from e
+
+def get_db_url() -> str:
+    cl_server_dir = ensure_cl_server_dir(create_if_missing=True)
+    
+    db_url = f"sqlite:///{cl_server_dir}/compute.db"
+    return db_url

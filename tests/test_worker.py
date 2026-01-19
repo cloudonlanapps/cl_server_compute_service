@@ -215,7 +215,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.mqtt_heartbeat_interval = 0.01
-        mock_config.compute_storage_dir = ""
+        mock_config.compute_storage_dir = "/tmp/compute"
         mock_config.worker_supported_tasks = None
         mock_config.capability_topic_prefix = ""
         

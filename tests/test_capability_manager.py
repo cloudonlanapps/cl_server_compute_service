@@ -3,12 +3,26 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from compute.capability_manager import (
     CapabilityManager,
     CapabilityMessage,
     close_capability_manager,
     get_capability_manager,
+    initialize_capability_manager,
 )
+from compute.config import ComputeConfig
+
+
+@pytest.fixture
+def mock_config():
+    """Create mock configuration."""
+    config = MagicMock(spec=ComputeConfig)
+    config.broadcast_type = "redis"
+    config.mqtt_broker = "localhost"
+    config.mqtt_port = 6379
+    config.capability_topic_prefix = "inference/workers"
+    return config
 
 
 class TestCapabilityMessage:
@@ -49,34 +63,35 @@ class TestCapabilityMessage:
 class TestCapabilityManager:
     """Tests for CapabilityManager."""
 
-    def test_capability_manager_init(self):
+    def test_capability_manager_init(self, mock_config):
         """Test CapabilityManager initialization."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             assert manager.capabilities_cache == {}
             assert manager.broadcaster is not None
             assert manager.ready_event.is_set()
+            assert manager.config == mock_config
             mock_broadcaster.subscribe.assert_called_once()  # pyright: ignore[reportAny] ignore mock types for testing purposes
 
-    def test_capability_manager_init_no_broadcaster(self):
+    def test_capability_manager_init_no_broadcaster(self, mock_config):
         """Test CapabilityManager when broadcaster is None."""
         with patch("compute.capability_manager.get_broadcaster", return_value=None):
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             assert manager.broadcaster is None
             assert manager.ready_event.is_set()
 
-    def test_on_message_valid_capability(self):
+    def test_on_message_valid_capability(self, mock_config):
         """Test processing valid capability message."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Simulate capability message
             topic = "inference/workers/worker-1"
@@ -95,13 +110,13 @@ class TestCapabilityManager:
             assert manager.capabilities_cache["worker-1"].id == "worker-1"
             assert "image_resize" in manager.capabilities_cache["worker-1"].capabilities
 
-    def test_on_message_empty_payload(self):
+    def test_on_message_empty_payload(self, mock_config):
         """Test processing LWT empty message (worker disconnected)."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Add worker to cache first
             topic = "inference/workers/worker-1"
@@ -122,13 +137,13 @@ class TestCapabilityManager:
             # Worker should be removed from cache
             assert "worker-1" not in manager.capabilities_cache
 
-    def test_on_message_invalid_topic(self):
+    def test_on_message_invalid_topic(self, mock_config):
         """Test processing message with invalid topic format."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Topic with less than 3 parts
             manager.on_message("invalid/topic", '{"id": "test"}')
@@ -136,13 +151,13 @@ class TestCapabilityManager:
             # Should not crash, cache should remain empty
             assert len(manager.capabilities_cache) == 0
 
-    def test_on_message_invalid_json(self):
+    def test_on_message_invalid_json(self, mock_config):
         """Test processing message with invalid JSON."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             topic = "inference/workers/worker-1"
             manager.on_message(topic, "invalid json{")
@@ -150,25 +165,25 @@ class TestCapabilityManager:
             # Should not crash, cache should remain empty
             assert len(manager.capabilities_cache) == 0
 
-    def test_get_cached_capabilities_empty(self):
+    def test_get_cached_capabilities_empty(self, mock_config):
         """Test getting capabilities when cache is empty."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             result = manager.get_cached_capabilities()
 
             assert result.root == {}
 
-    def test_get_cached_capabilities_single_worker(self):
+    def test_get_cached_capabilities_single_worker(self, mock_config):
         """Test getting capabilities with single worker."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Add worker capability
             topic = "inference/workers/worker-1"
@@ -187,13 +202,13 @@ class TestCapabilityManager:
             assert result.root["image_resize"] == 1
             assert result.root["image_conversion"] == 1
 
-    def test_get_cached_capabilities_multiple_workers(self):
+    def test_get_cached_capabilities_multiple_workers(self, mock_config):
         """Test aggregating capabilities from multiple workers."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Add first worker
             manager.on_message(
@@ -230,26 +245,26 @@ class TestCapabilityManager:
             assert result.root["image_conversion"] == 1
             assert result.root["face_detection"] == 2
 
-    def test_wait_for_capabilities(self):
+    def test_wait_for_capabilities(self, mock_config):
         """Test waiting for capability manager to be ready."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Should be immediately ready
             result = manager.wait_for_capabilities(timeout=1)
 
             assert result is True
 
-    def test_get_worker_count_by_capability(self):
+    def test_get_worker_count_by_capability(self, mock_config):
         """Test getting worker count by capability."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
 
             # Add workers
             manager.on_message(
@@ -283,21 +298,21 @@ class TestCapabilityManager:
             assert result.root["image_resize"] == 2
             assert result.root["image_conversion"] == 1
 
-    def test_disconnect(self):
+    def test_disconnect(self, mock_config):
         """Test disconnecting from broadcaster."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
 
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
             manager.disconnect()
 
             mock_broadcaster.disconnect.assert_called_once()  # pyright: ignore[reportAny] ignore mock types for testing purposes
 
-    def test_disconnect_no_broadcaster(self):
+    def test_disconnect_no_broadcaster(self, mock_config):
         """Test disconnecting when broadcaster is None."""
         with patch("compute.capability_manager.get_broadcaster", return_value=None):
-            manager = CapabilityManager()
+            manager = CapabilityManager(mock_config)
             # Should not crash
             manager.disconnect()
 
@@ -305,7 +320,7 @@ class TestCapabilityManager:
 class TestCapabilityManagerSingleton:
     """Tests for capability manager singleton functions."""
 
-    def test_get_capability_manager_singleton(self):
+    def test_get_capability_manager_singleton(self, mock_config):
         """Test that get_capability_manager returns singleton."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
@@ -316,7 +331,7 @@ class TestCapabilityManagerSingleton:
 
             compute.capability_manager._capability_manager_instance = None  # pyright: ignore[reportPrivateUsage]
 
-            manager1 = get_capability_manager()
+            manager1 = initialize_capability_manager(mock_config)
             manager2 = get_capability_manager()
 
             assert manager1 is manager2
@@ -324,7 +339,7 @@ class TestCapabilityManagerSingleton:
             # Clean up
             compute.capability_manager._capability_manager_instance = None  # pyright: ignore[reportPrivateUsage]
 
-    def test_close_capability_manager(self):
+    def test_close_capability_manager(self, mock_config):
         """Test closing capability manager singleton."""
         with patch("compute.capability_manager.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
@@ -335,7 +350,7 @@ class TestCapabilityManagerSingleton:
 
             compute.capability_manager._capability_manager_instance = None  # pyright: ignore[reportPrivateUsage]
 
-            manager = get_capability_manager()
+            manager = initialize_capability_manager(mock_config)
             assert manager is not None
 
             close_capability_manager()
