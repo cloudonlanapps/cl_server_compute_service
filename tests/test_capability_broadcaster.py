@@ -10,11 +10,18 @@ from compute.capability_broadcaster import CapabilityBroadcaster
 class TestCapabilityBroadcaster:
     """Tests for CapabilityBroadcaster."""
 
+
+    # @patch("compute.capability_broadcaster.Config", new_callable=MagicMock) # REMOVED
     def test_capability_broadcaster_init(self):
         """Test CapabilityBroadcaster initialization."""
+        mock_compute_config = MagicMock()
+        mock_compute_config.capability_topic_prefix = "capabilities"
+        mock_compute_config.broadcast_type = "redis"
+        
         broadcaster = CapabilityBroadcaster(
             worker_id="worker-1",
             active_tasks={"image_resize", "image_conversion"},
+            config=mock_compute_config,
         )
 
         assert broadcaster.worker_id == "worker-1"
@@ -28,10 +35,17 @@ class TestCapabilityBroadcaster:
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
             mock_get_broadcaster.return_value = mock_broadcaster
+            
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config,
             )
 
             broadcaster.init()
@@ -43,9 +57,16 @@ class TestCapabilityBroadcaster:
     def test_init_mqtt_broadcaster_no_broadcaster(self):
         """Test init when get_broadcaster returns None."""
         with patch("compute.capability_broadcaster.get_broadcaster", return_value=None):
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config
             )
 
             broadcaster.init()
@@ -59,9 +80,16 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.publish_retained.return_value = True  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize", "image_conversion"},
+                config=mock_config
             )
             broadcaster.init()
 
@@ -93,9 +121,16 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.publish_retained.return_value = True  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config
             )
             broadcaster.init()
             broadcaster.is_idle = False
@@ -116,9 +151,16 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.publish_retained.return_value = False  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config
             )
             broadcaster.init()
 
@@ -129,9 +171,13 @@ class TestCapabilityBroadcaster:
 
     def test_publish_without_init(self):
         """Test publishing without initializing broadcaster."""
+        mock_config = MagicMock()
+        mock_config.capability_topic_prefix = "capabilities"
+
         broadcaster = CapabilityBroadcaster(
             worker_id="worker-1",
             active_tasks={"image_resize"},
+            config=mock_config
         )
 
         # broadcaster is None, should not crash
@@ -146,9 +192,16 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.clear_retained.return_value = True  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config
             )
             broadcaster.init()
 
@@ -165,9 +218,16 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.clear_retained.return_value = False  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_broker = "localhost"
+            mock_config.mqtt_port = 1883
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"image_resize"},
+                config=mock_config
             )
             broadcaster.init()
 
@@ -178,9 +238,13 @@ class TestCapabilityBroadcaster:
 
     def test_clear_without_init(self):
         """Test clearing without initializing broadcaster."""
+        mock_config = MagicMock()
+        mock_config.capability_topic_prefix = "capabilities"
+
         broadcaster = CapabilityBroadcaster(
             worker_id="worker-1",
             active_tasks={"image_resize"},
+            config=mock_config
         )
 
         # broadcaster is None, should not crash
@@ -190,13 +254,16 @@ class TestCapabilityBroadcaster:
 
     def test_topic_format(self):
         """Test that topic uses correct format."""
-        with patch("compute.capability_broadcaster.Config.CAPABILITY_TOPIC_PREFIX", "test/workers"):
-            broadcaster = CapabilityBroadcaster(
-                worker_id="worker-123",
-                active_tasks=set(),
-            )
+        mock_config = MagicMock()
+        mock_config.capability_topic_prefix = "test/workers"
 
-            assert broadcaster.topic == "test/workers/worker-123"
+        broadcaster = CapabilityBroadcaster(
+            worker_id="worker-123",
+            active_tasks=set(),
+            config=mock_config
+        )
+
+        assert broadcaster.topic == "test/workers/worker-123"
 
     def test_publish_with_empty_tasks(self):
         """Test publishing with no active tasks."""
@@ -205,9 +272,14 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.publish_retained.return_value = True  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks=set(),  # Empty set
+                config=mock_config
             )
             broadcaster.init()
 
@@ -226,9 +298,14 @@ class TestCapabilityBroadcaster:
             mock_broadcaster.publish_retained.return_value = True  # pyright: ignore[reportAny] ignore mock types for testing purposes
             mock_get_broadcaster.return_value = mock_broadcaster
 
+            mock_config = MagicMock()
+            mock_config.capability_topic_prefix = "capabilities"
+            mock_config.broadcast_type = "redis"
+
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
                 active_tasks={"task1"},
+                config=mock_config
             )
             broadcaster.init()
 

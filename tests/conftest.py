@@ -3,7 +3,7 @@
 from collections.abc import Generator
 
 import pytest
-from cl_server_shared.models import Base
+from compute.models import Base
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 

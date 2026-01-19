@@ -1,13 +1,16 @@
-import time
+from __future__ import annotations
 
+import time
+from typing import TYPE_CHECKING
 from cl_ml_tools import (
     BroadcasterBase,
     get_broadcaster,
 )
-from cl_server_shared import Config
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
+if TYPE_CHECKING:
+    from .config import ComputeConfig
 
 class WorkerCapability(BaseModel):
     """Individual worker capability information (from MQTT messages)."""
@@ -23,25 +26,27 @@ class WorkerCapability(BaseModel):
 class CapabilityBroadcaster:
     """Manages MQTT broadcasting of worker capabilities for service discovery."""
 
-    def __init__(self, worker_id: str, active_tasks: set[str]):
+    def __init__(self, worker_id: str, active_tasks: set[str], config: ComputeConfig):
         """Initialize capability broadcaster.
 
         Args:
             worker_id: Unique identifier for this worker
             active_tasks: Set of task types this worker can execute
+            config: Compute service configuration
         """
         self.worker_id: str = worker_id
         self.active_tasks: set[str] = active_tasks
+        self.config = config
         self.is_idle: bool = True
         self.broadcaster: BroadcasterBase | None = None  # Type from cl_ml_tools (not exported)
-        self.topic: str = f"{Config.CAPABILITY_TOPIC_PREFIX}/{worker_id}"
+        self.topic: str = f"{config.capability_topic_prefix}/{worker_id}"
 
     def init(self):
         """Initialize MQTT broadcaster and set Last Will & Testament."""
         self.broadcaster = get_broadcaster(
-            broadcast_type=Config.BROADCAST_TYPE,
-            broker=Config.MQTT_BROKER,
-            port=Config.MQTT_PORT,
+            broadcast_type=self.config.broadcast_type,
+            broker=self.config.mqtt_broker,
+            port=self.config.mqtt_port,
         )
 
         # Set Last Will & Testament (LWT) - published when worker disconnects

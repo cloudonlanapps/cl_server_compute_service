@@ -13,14 +13,18 @@ from __future__ import annotations
 import asyncio
 import signal
 from types import FrameType
+from typing import TYPE_CHECKING
 
 from cl_ml_tools import Worker, shutdown_broadcaster
-from cl_server_shared import Config, JobStorageService
+from cl_server_shared import JobStorageService
 from cl_server_shared.shared_db import JobRepositoryService
 from loguru import logger
 
 from .capability_broadcaster import CapabilityBroadcaster
-from .database import SessionLocal
+from . import database
+
+if TYPE_CHECKING:
+    from .config import ComputeConfig
 
 # Global shutdown event and signal counter
 shutdown_event = asyncio.Event()
@@ -69,22 +73,27 @@ class ComputeWorker:
     def __init__(
         self,
         worker_id: str,
+        config: ComputeConfig,
         supported_tasks: list[str] | None = None,
-        poll_interval: float = Config.WORKER_POLL_INTERVAL,
     ):
         """Initialize compute worker.
 
         Args:
             worker_id: Unique identifier for this worker
+            config: Worker configuration
             supported_tasks: List of task types to process (None = all available)
-            poll_interval: Seconds to sleep when no jobs available
         """
         self.worker_id: str = worker_id
-        self.poll_interval: float = poll_interval
+        self.config = config
+        self.poll_interval: float = config.worker_poll_interval
 
         # Create repository and storage adapters
-        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal)
-        self.job_storage: JobStorageService = JobStorageService(base_dir=Config.COMPUTE_STORAGE_DIR)
+        # Note: SessionLocal is global from database module, initialized by init_db
+        if not database.SessionLocal:
+             raise RuntimeError("Database not initialized. Call database.init_db() first.")
+             
+        self.repository: JobRepositoryService = JobRepositoryService(database.SessionLocal)
+        self.job_storage: JobStorageService = JobStorageService(base_dir=config.compute_storage_dir)
 
         # Create cl_ml_tools Worker (auto-discovers plugins)
         logger.info("Initializing cl_ml_tools Worker...")
@@ -99,8 +108,8 @@ class ComputeWorker:
             set(supported_tasks)
             if supported_tasks
             else (
-                set(Config.WORKER_SUPPORTED_TASKS)
-                if Config.WORKER_SUPPORTED_TASKS
+                set(config.worker_supported_tasks)
+                if config.worker_supported_tasks
                 else available_tasks
             )
         )
@@ -131,15 +140,15 @@ class ComputeWorker:
 
         # Initialize capability broadcaster
         self.capability_broadcaster: CapabilityBroadcaster = CapabilityBroadcaster(
-            worker_id=worker_id, active_tasks=self.active_tasks
+            worker_id=worker_id, active_tasks=self.active_tasks, config=config
         )
 
     async def _heartbeat_task(self):
         """Background task to periodically publish worker capabilities."""
-        logger.info(f"Heartbeat task started (interval: {Config.MQTT_HEARTBEAT_INTERVAL}s)")
+        logger.info(f"Heartbeat task started (interval: {self.config.mqtt_heartbeat_interval}s)")
         try:
             while not shutdown_event.is_set():
-                await asyncio.sleep(Config.MQTT_HEARTBEAT_INTERVAL)
+                await asyncio.sleep(self.config.mqtt_heartbeat_interval)
                 if not shutdown_event.is_set():
                     self.capability_broadcaster.publish()
         except asyncio.CancelledError:
@@ -217,11 +226,12 @@ class ComputeWorker:
             self.capability_broadcaster.clear()
 
     @classmethod
-    async def run_worker(cls, worker_id: str, tasks: list[str] | None):
+    async def run_worker(cls, worker_id: str, config: ComputeConfig, tasks: list[str] | None):
         """Create and run worker with given configuration.
 
         Args:
             worker_id: Unique worker identifier
+            config: Worker configuration
             tasks: List of task types to process (None = all available)
         """
         # Register signal handlers for graceful shutdown
@@ -230,6 +240,7 @@ class ComputeWorker:
 
         worker = cls(
             worker_id=worker_id,
+            config=config,
             supported_tasks=tasks,
         )
 

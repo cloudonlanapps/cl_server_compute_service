@@ -1,21 +1,60 @@
 """Tests for FastAPI application."""
 
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.openapi.models import OpenAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from compute.database import init_db, SessionLocal
+import compute.database
+from compute.models import Base
 from compute.schemas import RootResponse
 from compute.task_server import app
 
 
 @pytest.fixture
-def client() -> TestClient:
+def mock_config():
+    with patch("compute.config.ComputeConfig") as mock:
+        config_instance = MagicMock()
+        config_instance.auth_disabled = False
+        config_instance.public_key_path = "/tmp/public_key"
+        config_instance.database_url = "sqlite:///:memory:"
+        config_instance.debug = False
+        mock.from_cli_args.return_value = config_instance
+        yield config_instance
+
+@pytest.fixture
+def client(mock_config) -> TestClient:
     """Create test client."""
-    return TestClient(app)
+    # Initialize database with mock config (which has valid sqlite url)
+    # We must do this before TestClient(app) because app lifespan runs check_tables_exist
+    
+    # Check if already initialized (by other tests?)
+    # We want a fresh start for this test file ideally, but global state...
+    # Let's force re-init or just ensure tables exist.
+    
+    # Reset globals to ensure clean init
+    compute.database.engine = None
+    compute.database.SessionLocal = None
+    
+    init_db(mock_config)
+    
+    # Create tables
+    if compute.database.engine:
+        Base.metadata.create_all(bind=compute.database.engine)
+    
+    with patch("compute.database.check_tables_exist"):
+        with TestClient(app) as client:
+            yield client
+    
+    # Cleanup
+    if compute.database.engine:
+        Base.metadata.drop_all(bind=compute.database.engine)
+    compute.database.engine = None
+    compute.database.SessionLocal = None
 
 
 class TestTaskServerApp:

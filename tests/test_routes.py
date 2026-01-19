@@ -27,6 +27,13 @@ def app() -> FastAPI:
     """Create test FastAPI app."""
     test_app = FastAPI()
     test_app.include_router(router)
+    
+    # Inject mock config
+    mock_config = MagicMock()
+    mock_config.auth_disabled = False
+    mock_config.public_key_path = "/tmp/public_key"
+    test_app.state.config = mock_config
+    
     return test_app
 
 

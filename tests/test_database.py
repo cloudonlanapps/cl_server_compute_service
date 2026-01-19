@@ -181,16 +181,25 @@ class TestGetDb:
     def test_get_db_yields_session(self):
         """Test that get_db yields a session."""
         # get_db is a convenience wrapper around get_db_session
-        generator = get_db()
-        session = next(generator)
+        
+        # Mock SessionLocal to be a valid factory
+        mock_factory = MagicMock()
+        mock_session = MagicMock()
+        mock_factory.return_value = mock_session
+        
+        with patch("compute.database.SessionLocal", mock_factory):
+            generator = get_db()
+            session = next(generator)
 
-        assert isinstance(session, Session)
+            assert session == mock_session
 
-        # Clean up
-        try:
-            _ = next(generator)
-        except StopIteration:
-            pass
+            # Clean up
+            try:
+                _ = next(generator)
+            except StopIteration:
+                pass
+            
+            mock_session.close.assert_called_once()
 
     def test_get_db_can_be_used_in_dependency(self):
         """Test that get_db works as FastAPI dependency."""

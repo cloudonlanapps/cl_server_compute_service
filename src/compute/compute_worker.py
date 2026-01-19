@@ -12,6 +12,7 @@ import asyncio
 import os
 import sys
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 from loguru import logger
 
@@ -21,6 +22,8 @@ class Args(Namespace):
     tasks: str | None
     log_level: str
     server_port: int
+    database_url: str
+    cl_server_dir: str
 
     def __init__(
         self,
@@ -28,12 +31,16 @@ class Args(Namespace):
         tasks: str | None = None,
         log_level: str = "INFO",
         server_port: int = 8002,
+        database_url: str = "",
+        cl_server_dir: str = "",
     ) -> None:
         super().__init__()
         self.worker_id = worker_id
         self.tasks = tasks
         self.log_level = log_level
         self.server_port = server_port
+        self.database_url = database_url
+        self.cl_server_dir = cl_server_dir
 
 
 def main() -> int:
@@ -74,6 +81,16 @@ def main() -> int:
         help=f"Compute server port (default: {default_server_port})",
         dest="server_port",
     )
+    _ = parser.add_argument(
+        "--database-url",
+        default=os.getenv("WORKER_DATABASE_URL", ""),
+        help="Database URL (default: sqlite:///compute.db)",
+    )
+    _ = parser.add_argument(
+        "--cl-server-dir", 
+        default=os.getenv("CL_SERVER_DIR", ""),
+        help="Root directory for CoLAN Server data"
+    )
 
     args = parser.parse_args(namespace=Args())
 
@@ -83,16 +100,30 @@ def main() -> int:
 
     server_host = "localhost"
     print(f"Checking compute server at {server_host}:{args.server_port}...")
-    ensure_server_running(server_host, args.server_port)
-    print("✓ Server is running\n")
+    try:
+        ensure_server_running(server_host, args.server_port)
+        print("✓ Server is running\n")
+    except Exception as e:
+        print(f"WARNING: Server check failed: {e}")
+        print("Worker may fail if database/dirs are not ready.")
 
-    # Validate CL_SERVER_DIR exists (does not create it - expects server to have created it)
-    # This MUST happen before importing anything that uses Config
-    from .utils import validate_cl_server_dir_exists
+    # Ensure CL_SERVER_DIR exists if provided
+    if args.cl_server_dir:
+        cl_dir = Path(args.cl_server_dir)
+        if not cl_dir.exists():
+            print(f"WARNING: --cl-server-dir {cl_dir} does not exist.")
+        else:
+             os.environ["CL_SERVER_DIR"] = str(cl_dir)
+    
+    # Initialize Config
+    from .config import ComputeConfig
+    config = ComputeConfig.from_cli_args(args)
+    
+    # Initialize Database (Worker needs access to DB)
+    from . import database
+    database.init_db(config)
 
-    _ = validate_cl_server_dir_exists()
-
-    # Import ComputeWorker here after server and directory validation
+    # Import ComputeWorker here after init
     from .worker import ComputeWorker
 
     # Parse tasks
@@ -103,11 +134,12 @@ def main() -> int:
     print(f"Connected to server: {server_host}:{args.server_port}")
     print(f"Task filter: {tasks or 'all available'}")
     print(f"Log level: {args.log_level}")
+    print(f"Database: {config.database_url}")
     print("Press Ctrl+C to stop\n")
 
     # Run worker
     try:
-        asyncio.run(ComputeWorker.run_worker(args.worker_id, tasks))
+        asyncio.run(ComputeWorker.run_worker(args.worker_id, config, tasks))
         return 0
     except KeyboardInterrupt:
         logger.info("Worker stopped by user")

@@ -15,10 +15,20 @@ from .schemas import RootResponse
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown."""
+    from .config import ComputeConfig
+    from .database import check_tables_exist, init_db
+
+    # Initialize configuration and database
+    # Check if config is already injected (e.g. by compute_server.py)
+    if not hasattr(app.state, "config"):
+        # Note: In production, CLI args are passed; in tests, we rely on mocks or pytest args
+        # When running simply via uvicorn/deployment without compute_server wrapper, use defaults/env
+        config = ComputeConfig.from_cli_args(None)
+        init_db(config)
+        app.state.config = config
+    
     _ = app
     # Startup: validate database tables exist
-    from .database import check_tables_exist
-
     check_tables_exist()
 
     yield

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Generator
+from typing import TYPE_CHECKING
 
-from cl_server_shared.config import Config
 from loguru import logger
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    from .config import ComputeConfig
 
 
 def enable_wal_mode(
@@ -97,14 +100,31 @@ def get_db_session(
         db.close()
 
 
-# Create engine with WAL mode - use WORKER_DATABASE_URL for task management
-engine = create_db_engine(Config.WORKER_DATABASE_URL, echo=False)
+# Global engine and session factory - initialized in main.py via init_db
+engine: Engine | None = None
+SessionLocal: sessionmaker[Session] | None = None
 
-SessionLocal: sessionmaker[Session] = create_session_factory(engine)
+
+def init_db(config: ComputeConfig) -> None:
+    """Initialize database engine and session factory.
+
+    Args:
+        config: Service configuration
+    """
+    global engine, SessionLocal
+
+    if engine is not None:
+        return
+
+    logger.info(f"Initializing database: {config.database_url}")
+    engine = create_db_engine(config.database_url, echo=config.debug)
+    SessionLocal = create_session_factory(engine)
 
 
 def get_db() -> Generator[Session, None, None]:
     """Get database session for FastAPI dependency injection."""
+    if SessionLocal is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
     yield from get_db_session(SessionLocal)
 
 
@@ -117,6 +137,9 @@ def check_tables_exist() -> None:
         RuntimeError: If required tables don't exist
     """
     from sqlalchemy import inspect
+
+    if engine is None:
+        raise RuntimeError("Database not initialized")
 
     inspector = inspect(engine)
     existing_tables = inspector.get_table_names()

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import os
-import sys
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
+
+from loguru import logger
 
 
 class Args(Namespace):
@@ -12,6 +14,10 @@ class Args(Namespace):
     debug: bool
     reload: bool
     log_level: str
+    database_url: str
+    public_key_path: str
+    auth_disabled: bool
+    cl_server_dir: str
 
     def __init__(
         self,
@@ -20,6 +26,10 @@ class Args(Namespace):
         debug: bool = False,
         reload: bool = False,
         log_level: str = "info",
+        database_url: str = "",
+        public_key_path: str = "",
+        auth_disabled: bool = False,
+        cl_server_dir: str = "",
     ) -> None:
         super().__init__()
         self.host = host
@@ -27,39 +37,88 @@ class Args(Namespace):
         self.debug = debug
         self.reload = reload
         self.log_level = log_level
+        self.database_url = database_url
+        self.public_key_path = public_key_path
+        self.auth_disabled = auth_disabled
+        self.cl_server_dir = cl_server_dir
 
 
 def main() -> int:
     parser = ArgumentParser(prog="compute-server")
-    _ = parser.add_argument("--port", "-p", type=int, default=int(os.getenv("PORT", "8002")))
+    _ = parser.add_argument(
+        "--port", "-p", type=int, default=int(os.getenv("PORT", "8002"))
+    )
     _ = parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"))
-    _ = parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload (dev)")
+    _ = parser.add_argument(
+        "--reload", action="store_true", help="Enable uvicorn reload (dev)"
+    )
+    _ = parser.add_argument(
+        "--debug", action="store_true", help="Enable debug mode"
+    )
+    _ = parser.add_argument(
+        "--database-url",
+        default=os.getenv("WORKER_DATABASE_URL", ""),
+        help="Database URL (default: sqlite:///compute.db)",
+    )
+    _ = parser.add_argument(
+        "--public-key-path",
+        default=os.getenv("PUBLIC_KEY_PATH", ""),
+        help="Path to public key for JWT validation",
+    )
+    _ = parser.add_argument(
+        "--no-auth",
+        action="store_true",
+        dest="auth_disabled",
+        help="Disable authentication checks",
+    )
+    _ = parser.add_argument(
+        "--cl-server-dir", 
+        default=os.getenv("CL_SERVER_DIR", ""),
+        help="Root directory for CoLAN Server data"
+    )
+
     args = parser.parse_args(namespace=Args())
 
-    # Ensure CL_SERVER_DIR exists and is writable (creates if needed)
-    # This MUST happen before importing anything that uses Config
-    from .utils import ensure_cl_server_dir
+    # Ensure CL_SERVER_DIR exists if provided
+    if args.cl_server_dir:
+        cl_dir = Path(args.cl_server_dir)
+        cl_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["CL_SERVER_DIR"] = str(cl_dir)
+    else:
+        # Legacy/Testing: try to use utils if available (TEMPORARY)
+        # Or just log warning
+        pass
+    
+    # Initialize Config
+    from .config import ComputeConfig
+    config = ComputeConfig.from_cli_args(args)
+    
+    # Initialize Database
+    from . import database
+    database.init_db(config)
 
-    _ = ensure_cl_server_dir()
-
-    # Set env vars expected by your app
-    _ = os.environ.setdefault("CL_SERVER_DIR", os.getenv("CL_SERVER_DIR", ""))
-
-    # Import uvicorn here after directory is set up
+    # Import uvicorn
     import uvicorn
+    
+    # Import app and inject config
+    from .task_server import app
+    app.state.config = config
+
+    logger.info(f"Starting compute server on {args.host}:{args.port}")
+    logger.info(f"Database: {config.database_url}")
+    logger.info(f"Auth disabled: {config.auth_disabled}")
 
     # Start server (blocks)
     try:
-        # Pass app as import string for reload to work
+        # Note: Passing the app object disables 'reload' support in standard uvicorn usage.
         uvicorn.run(
-            "compute.task_server:app",
+            app,
             host=args.host,
             port=args.port,
-            reload=args.reload,
             log_level=args.log_level,
         )
     except Exception as exc:
-        print(f"Error starting service: {exc}", file=sys.stderr)
+        logger.error(f"Error starting service: {exc}")
         return 1
     return 0
 
