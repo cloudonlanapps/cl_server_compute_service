@@ -25,6 +25,7 @@ from cl_ml_tools import (
     NoOpBroadcaster,
     get_broadcaster,
 )
+from loguru import logger
 from pydantic import JsonValue
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
@@ -83,14 +84,14 @@ class JobRepositoryService(JobRepository):
         if self.broadcaster:
             import json
             
-            # Use configured topic prefix (assumed simple 'jobs' or from config if available)
-            # Shared db uses "Config.MQTT_TOPIC". ComputeConfig has "capability_topic_prefix", 
-            # maybe we should add "job_topic_prefix"?
-            # For now, let's use a standard topic derived from config or hardcode "jobs/progress"
-            # referencing existing shared behavior: Config.MQTT_TOPIC = "jobs/events"
-            topic = "jobs/events" 
-            
-            _ = self.broadcaster.publish_event(topic=topic, payload=json.dumps(payload))
+            # Use configured topic prefix
+            topic = self.config.mqtt_job_events_topic
+            payload_str = json.dumps(payload)
+            success = self.broadcaster.publish_event(topic=topic, payload=payload_str)
+            if not success:
+                logger.error(f"Failed to broadcast job event: topic={topic}, job_id={job_id}, status={status.value}")
+        else:
+            logger.warning("No broadcaster available for job progress updates")
 
     @override
     def add_job(
@@ -180,7 +181,6 @@ class JobRepositoryService(JobRepository):
         """
         with self.session_factory() as session:
             # Build update values from Pydantic model
-
             update_values: dict[str, JsonValue] = updates.model_dump(exclude_none=True)
 
             status = update_values.get("status")
@@ -206,20 +206,25 @@ class JobRepositoryService(JobRepository):
                 update(Job)
                 .where(Job.job_id == job_id)
                 .values(**update_values)
-                .returning(Job.job_id)
+                .returning(Job)
             )
-            updated_job_id: str | None = session.execute(stmt).scalar_one_or_none()
+            # Execute and get the updated/latest object
+            db_job = session.execute(stmt).scalar_one_or_none()
             session.commit()
 
-            # Broadcast progress update via MQTT if progress was updated
-            if (
-                updated_job_id is not None
-                and updates.status is not None
-                and updates.progress is not None
-            ):
-                self._broadcast_progress(job_id, updates.status, updates.progress)
+            if db_job is not None:
+                # Refresh to ensure we have any defaults/computed fields if any
+                session.refresh(db_job)
+                
+                # Always broadcast after a successful update
+                # We use the current state from DB to ensure we have both status and progress
+                self._broadcast_progress(
+                    db_job.job_id, 
+                    JobStatus(db_job.status), 
+                    db_job.progress
+                )
 
-            return updated_job_id is not None
+            return db_job is not None
 
     @override
     def fetch_next_job(self, task_types: Sequence[str]) -> JobRecord | None:

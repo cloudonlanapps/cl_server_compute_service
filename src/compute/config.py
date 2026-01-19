@@ -31,8 +31,9 @@ class ComputeConfig:
     mqtt_broker: str = "localhost"
     mqtt_port: int = 1883
     mqtt_heartbeat_interval: float = 10.0
-    capability_topic_prefix: str = "capabilities"
-    broadcast_type: str = "redis" # Default to redis as per shared config, or mqtt? Shared config says BROADCAST_TYPE.
+    capability_topic_prefix: str = "inference/workers"
+    mqtt_job_events_topic: str = "inference/events"
+    broadcast_type: str = "mqtt"
 
     # Database
     database_url: str = ""
@@ -91,4 +92,6 @@ class ComputeConfig:
             # MQTT
             mqtt_broker=getattr(args, "mqtt_broker", "localhost"),
             mqtt_port=getattr(args, "mqtt_port", 1883),
+            capability_topic_prefix=getattr(args, "capability_topic_prefix", "inference/workers"),
+            mqtt_job_events_topic=getattr(args, "mqtt_job_events_topic", "inference/events"),
         )
