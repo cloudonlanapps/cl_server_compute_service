@@ -1,6 +1,7 @@
 """Tests for compute worker."""
 
 import asyncio
+import os
 import signal
 from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -94,7 +95,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         
         worker = ComputeWorker(
@@ -114,7 +115,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
 
         worker = ComputeWorker(
             worker_id="test-worker",
@@ -130,7 +131,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
 
         with pytest.raises(RuntimeError, match="No matching plugins found"):
             _ = ComputeWorker(
@@ -154,7 +155,7 @@ class TestComputeWorker:
             mock_config = MagicMock()
             mock_config.worker_poll_interval = 1.0
             mock_config.worker_supported_tasks = None
-            mock_config.compute_storage_dir = "/tmp/compute"
+            mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
 
             with pytest.raises(RuntimeError, match="No compute plugins found"):
                 _ = ComputeWorker(
@@ -169,7 +170,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 30
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
 
         worker = ComputeWorker(
@@ -185,7 +186,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 0.01  # Fast for test
 
@@ -215,7 +216,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.mqtt_heartbeat_interval = 0.01
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.worker_supported_tasks = None
         mock_config.capability_topic_prefix = ""
         
@@ -243,7 +244,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
@@ -266,7 +267,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
@@ -287,7 +288,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
@@ -306,7 +307,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
@@ -325,7 +326,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -367,7 +368,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -391,7 +392,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -425,7 +426,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -511,7 +512,7 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "/tmp/compute"
+        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
         

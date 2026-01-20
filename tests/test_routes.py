@@ -1,5 +1,6 @@
 """Tests for API routes."""
 
+import os
 from collections.abc import Generator
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -31,7 +32,7 @@ def app() -> FastAPI:
     # Inject mock config
     mock_config = MagicMock()
     mock_config.auth_disabled = False
-    mock_config.public_key_path = "/tmp/public_key"
+    mock_config.public_key_path = os.path.join(os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts"), "compute", "public_key")
     test_app.state.config = mock_config
     
     return test_app

@@ -1,5 +1,6 @@
 """Tests for database configuration."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,7 +77,10 @@ class TestCreateDbEngine:
 
     def test_create_db_engine_sqlite_registers_wal_listener(self):
         """Test that WAL mode listener is registered for file-based SQLite."""
-        database_url = "sqlite:////tmp/test.db"
+        artifact_dir = os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts")
+        db_path = os.path.join(artifact_dir, "compute", "test.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        database_url = f"sqlite:///{db_path}"
 
         with patch("compute.database.event.listen") as mock_listen:
             _ = create_db_engine(database_url)
