@@ -8,7 +8,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from compute.worker import ComputeWorker, reset_shutdown_state, shutdown_event, signal_handler
+from compute.worker import (
+    ComputeWorker,
+    reset_shutdown_state,
+    shutdown_event,
+    signal_handler,
+)
 
 
 class TestSignalHandler:
@@ -61,7 +66,9 @@ class TestComputeWorker:
         reset_shutdown_state()
 
     @pytest.fixture
-    def mock_dependencies(self) -> Generator[dict[str, MagicMock | AsyncMock], None, None]:
+    def mock_dependencies(
+        self,
+    ) -> Generator[dict[str, MagicMock | AsyncMock], None, None]:
         """Mock dependencies for ComputeWorker."""
         with (
             patch("compute.worker.JobRepositoryService") as mock_repo,
@@ -74,10 +81,12 @@ class TestComputeWorker:
             mock_session_local.return_value = MagicMock()
             # Configure mock library worker
             mock_worker_instance = MagicMock()
-            mock_worker_instance.get_supported_task_types.return_value = [  # pyright: ignore[reportAny] ignore mock type for testing purposes
-                "image_resize",
-                "image_conversion",
-            ]
+            mock_worker_instance.get_supported_task_types.return_value = (
+                [  # pyright: ignore[reportAny] ignore mock type for testing purposes
+                    "image_resize",
+                    "image_conversion",
+                ]
+            )
             mock_worker_instance.run_once = AsyncMock(return_value=True)
             mock_worker.return_value = mock_worker_instance
 
@@ -95,9 +104,11 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
-        
+
         worker = ComputeWorker(
             worker_id="test-worker",
             supported_tasks=None,
@@ -115,7 +126,9 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
 
         worker = ComputeWorker(
             worker_id="test-worker",
@@ -131,7 +144,9 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
 
         with pytest.raises(RuntimeError, match="No matching plugins found"):
             _ = ComputeWorker(
@@ -146,16 +161,21 @@ class TestComputeWorker:
             patch("compute.worker.JobRepositoryService"),
             patch("compute.worker.JobStorageService"),
             patch("compute.worker.Worker") as mock_worker,
-            patch("compute.database.SessionLocal", new=MagicMock()), # Mock DB session
+            patch("compute.database.SessionLocal", new=MagicMock()),  # Mock DB session
         ):
             mock_worker_instance = MagicMock()
-            mock_worker_instance.get_supported_task_types.return_value = []  # pyright: ignore[reportAny] ignore mock type for testing purposes
+            mock_worker_instance.get_supported_task_types.return_value = (
+                []
+            )  # pyright: ignore[reportAny] ignore mock type for testing purposes
             mock_worker.return_value = mock_worker_instance
-            
+
             mock_config = MagicMock()
             mock_config.worker_poll_interval = 1.0
             mock_config.worker_supported_tasks = None
-            mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+            mock_config.compute_storage_dir = (
+                os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts")
+                + "/compute"
+            )
 
             with pytest.raises(RuntimeError, match="No compute plugins found"):
                 _ = ComputeWorker(
@@ -170,7 +190,9 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 30
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
 
         worker = ComputeWorker(
@@ -186,7 +208,9 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 0.01  # Fast for test
 
@@ -196,7 +220,9 @@ class TestComputeWorker:
         worker.capability_broadcaster.publish = MagicMock()
 
         # Run heartbeat task for a short time
-        task = asyncio.create_task(worker._heartbeat_task())  # pyright: ignore[reportPrivateUsage]
+        task = asyncio.create_task(
+            worker._heartbeat_task()
+        )  # pyright: ignore[reportPrivateUsage]
 
         # Wait a bit then cancel
         await asyncio.sleep(0.1)
@@ -216,15 +242,19 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.mqtt_heartbeat_interval = 0.01
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.worker_supported_tasks = None
         mock_config.capability_topic_prefix = ""
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.publish = MagicMock()
 
         # Start heartbeat task
-        task = asyncio.create_task(worker._heartbeat_task())  # pyright: ignore[reportPrivateUsage]
+        task = asyncio.create_task(
+            worker._heartbeat_task()
+        )  # pyright: ignore[reportPrivateUsage]
 
         # Set shutdown event
         shutdown_event.set()
@@ -244,9 +274,11 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.publish = MagicMock()
 
@@ -267,9 +299,11 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.publish = MagicMock()
 
@@ -288,9 +322,11 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.publish = MagicMock()
 
@@ -307,9 +343,11 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.is_idle = True
         worker.capability_broadcaster.publish = MagicMock()
@@ -319,14 +357,18 @@ class TestComputeWorker:
         # Should be marked idle after processing
         assert worker.capability_broadcaster.is_idle is True
 
-    async def test_run_worker_loop(self, mock_dependencies: dict[str, MagicMock | AsyncMock]):
+    async def test_run_worker_loop(
+        self, mock_dependencies: dict[str, MagicMock | AsyncMock]
+    ):
         """Test main worker run loop."""
         mock_dependencies["worker_instance"].run_once = AsyncMock(return_value=False)
-        
+
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -363,12 +405,16 @@ class TestComputeWorker:
                 shutdown_event.set()
             return True
 
-        mock_dependencies["worker_instance"].run_once = AsyncMock(side_effect=run_once_side_effect)
+        mock_dependencies["worker_instance"].run_once = AsyncMock(
+            side_effect=run_once_side_effect
+        )
 
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -388,11 +434,13 @@ class TestComputeWorker:
         mock_dependencies["worker_instance"].run_once = AsyncMock(
             side_effect=asyncio.CancelledError()
         )
-        
+
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -421,12 +469,16 @@ class TestComputeWorker:
                 shutdown_event.set()
                 return False
 
-        mock_dependencies["worker_instance"].run_once = AsyncMock(side_effect=run_once_side_effect)
+        mock_dependencies["worker_instance"].run_once = AsyncMock(
+            side_effect=run_once_side_effect
+        )
 
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 0.01
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
 
@@ -451,7 +503,9 @@ class TestComputeWorker:
             # Set shutdown immediately to exit quickly
             shutdown_event.set()
 
-            mock_dependencies["worker_instance"].run_once = AsyncMock(return_value=False)
+            mock_dependencies["worker_instance"].run_once = AsyncMock(
+                return_value=False
+            )
 
             # Mock capability broadcaster methods
             mock_broadcaster_instance = MagicMock()
@@ -459,7 +513,7 @@ class TestComputeWorker:
             mock_broadcaster_instance.publish = MagicMock()
             mock_broadcaster_instance.clear = MagicMock()
             mock_dependencies["broadcaster"].return_value = mock_broadcaster_instance
-            
+
             mock_config = MagicMock()
             mock_config.worker_poll_interval = 1.0
 
@@ -485,7 +539,9 @@ class TestComputeWorker:
         ):
             shutdown_event.set()
 
-            mock_dependencies["worker_instance"].run_once = AsyncMock(return_value=False)
+            mock_dependencies["worker_instance"].run_once = AsyncMock(
+                return_value=False
+            )
 
             # Mock capability broadcaster
             mock_broadcaster_instance = MagicMock()
@@ -493,7 +549,7 @@ class TestComputeWorker:
             mock_broadcaster_instance.publish = MagicMock()
             mock_broadcaster_instance.clear = MagicMock()
             mock_dependencies["broadcaster"].return_value = mock_broadcaster_instance
-            
+
             mock_config = MagicMock()
             mock_config.worker_poll_interval = 1.0
             mock_config.worker_supported_tasks = None
@@ -512,10 +568,12 @@ class TestComputeWorker:
         mock_config = MagicMock()
         mock_config.worker_poll_interval = 1.0
         mock_config.worker_supported_tasks = None
-        mock_config.compute_storage_dir = "os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute""
+        mock_config.compute_storage_dir = (
+            os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts") + "/compute"
+        )
         mock_config.capability_topic_prefix = "capabilities"
         mock_config.mqtt_heartbeat_interval = 1.0
-        
+
         worker = ComputeWorker(worker_id="test-worker", config=mock_config)
         worker.capability_broadcaster.init = MagicMock()
         worker.capability_broadcaster.publish = MagicMock()
