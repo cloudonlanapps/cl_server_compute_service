@@ -186,39 +186,16 @@ The worker is a standalone process that executes compute jobs:
 
 ## Plugin System
 
-Task Server integrates with cl_ml_tools plugin system:
+Task Server integrates with cl_ml_tools plugin system.
 
-1. **Plugin Registration**
-   - Plugins register via `pyproject.toml` entry points
-   - Entry point group: `cl_ml_tools.tasks`
-   - Built-in plugins provided by cl_ml_tools package
+**Note:** Uses cl_ml_tools plugins. When adding a new plugin, update plugin registration in pyproject.toml under `[project.entry-points."cl_ml_tools.tasks"]`. The plugin system is provided by cl_ml_tools package - see its documentation for available plugins and how to create custom plugins.
 
-   Example custom plugin registration:
-   ```toml
-   [project.entry-points."cl_ml_tools.tasks"]
-   my_custom_task = "my_package.tasks:MyCustomTask"
-   ```
+**Integration Points:**
+1. **Plugin Registration** - Plugins register via pyproject.toml entry points
+2. **API Routes** - `create_master_router()` creates plugin routes mounted on FastAPI app
+3. **Worker Discovery** - Worker auto-discovers all registered plugins using `get_task_registry()`
 
-2. **API Routes**
-   - `create_master_router()` creates plugin routes
-   - Routes are mounted on the FastAPI app
-   - Plugins use shared JobRepository and FileStorage
-
-3. **Worker Discovery**
-   - Worker auto-discovers all registered plugins
-   - Uses `get_task_registry()` from cl_ml_tools
-   - Filters tasks based on configuration or CLI args
-
-4. **Available Built-in Plugins**
-   - clip_embedding - CLIP image embeddings
-   - dino_embedding - DINO image embeddings
-   - exif - EXIF metadata extraction
-   - face_detection - Face detection in images
-   - face_embedding - Face recognition embeddings
-   - hash - Perceptual image hashing
-   - hls_streaming - HLS video streaming
-   - image_conversion - Image format conversion
-   - media_thumbnail - Media thumbnail generation
+**Note:** For system-wide architecture and inter-service communication, see [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) in the repository root.
 
 ## Development Workflow
 
@@ -279,6 +256,19 @@ All configuration is managed through `cl_server_shared.Config` class:
 - Environment variables loaded at startup
 - Shared across all CL Server services
 - See cl_server_shared documentation for full config options
+
+## Testing Strategy
+
+See [tests/README.md](tests/README.md) for comprehensive testing documentation, including test organization, fixtures, and coverage requirements.
+
+Tests are organized by functionality:
+- `test_routes.py` - API endpoint tests
+- `test_service.py` - Business logic tests
+- `test_worker.py` - Worker execution tests
+- `test_database.py` - Database operations
+- `test_auth.py` - Authentication and authorization
+
+All tests use in-memory SQLite databases and isolated test clients.
 
 ## Future Enhancements
 
