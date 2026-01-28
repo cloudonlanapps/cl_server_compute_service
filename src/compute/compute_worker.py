@@ -22,6 +22,7 @@ class Args(Namespace):
     tasks: str | None
     log_level: str
     server_port: int
+    worker_poll_interval: float
 
     def __init__(
         self,
@@ -35,6 +36,7 @@ class Args(Namespace):
         self.tasks = tasks
         self.log_level = log_level
         self.server_port = server_port
+        self.worker_poll_interval = 1.0
 
 
 def main() -> int:
@@ -69,6 +71,12 @@ def main() -> int:
         default=8002,
         help="Compute server port (default: 8002)",
         dest="server_port",
+    )
+    _ = parser.add_argument(
+        "--worker-poll-interval",
+        type=float,
+        default=1.0,
+        help="Polling interval for jobs in seconds (default: 1.0)",
     )
 
     args = parser.parse_args(namespace=Args())
