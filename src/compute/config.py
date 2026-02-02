@@ -28,7 +28,7 @@ class ComputeConfig:
     worker_supported_tasks: list[str] | None = None
     
     # MQTT Settings (unified mqtt_url replaces broker/port)
-    mqtt_url: str | None = None  # None means MQTT disabled
+    mqtt_url: str = "mqtt://localhost:1883"
     mqtt_heartbeat_interval: float = 10.0
     capability_topic_prefix: str = "inference/workers"
     mqtt_job_events_topic: str = "inference/events"

@@ -16,7 +16,7 @@ class Args(Namespace):
     log_level: str
     public_key_path: str
     auth_disabled: bool
-    mqtt_url: str | None  # MQTT URL for broadcasting
+    mqtt_url: str  # MQTT URL for broadcasting
 
     def __init__(
         self,
@@ -27,7 +27,7 @@ class Args(Namespace):
         log_level: str = "info",
         public_key_path: str = "",
         auth_disabled: bool = False,
-        mqtt_url: str | None = "mqtt://localhost:1883",  # Default only in CLI
+        mqtt_url: str = "mqtt://localhost:1883",  # Default only in CLI
     ) -> None:
         super().__init__()
         self.host = host
