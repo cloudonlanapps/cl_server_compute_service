@@ -11,6 +11,22 @@ from sqlalchemy.orm import Session, sessionmaker
 from compute.models import ServiceConfig  # noqa: F401
 
 
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--mqtt-url",
+        action="store",
+        default="mqtt://localhost:1883",
+        help="MQTT broker URL for tests (default: mqtt://localhost:1883)",
+    )
+
+
+@pytest.fixture(scope="session")
+def mqtt_url(request) -> str:
+    """Provide MQTT URL from --mqtt-url command line option."""
+    return request.config.getoption("--mqtt-url")
+
+
 @pytest.fixture
 def db_engine() -> Generator[Engine, None, None]:
     """Create an in-memory SQLite database engine for testing."""

@@ -16,6 +16,7 @@ class Args(Namespace):
     log_level: str
     public_key_path: str
     auth_disabled: bool
+    mqtt_url: str | None  # MQTT URL for broadcasting
 
     def __init__(
         self,
@@ -26,6 +27,7 @@ class Args(Namespace):
         log_level: str = "info",
         public_key_path: str = "",
         auth_disabled: bool = False,
+        mqtt_url: str | None = "mqtt://localhost:1883",  # Default only in CLI
     ) -> None:
         super().__init__()
         self.host = host
@@ -35,6 +37,7 @@ class Args(Namespace):
         self.log_level = log_level
         self.public_key_path = public_key_path
         self.auth_disabled = auth_disabled
+        self.mqtt_url = mqtt_url
 
 
 def main() -> int:
@@ -60,8 +63,21 @@ def main() -> int:
         dest="auth_disabled",
         help="Disable authentication checks",
     )
+    _ = parser.add_argument(
+        "--mqtt-url",
+        type=str,
+        default="mqtt://localhost:1883",
+        help=(
+            "MQTT broker URL (e.g., mqtt://192.168.0.105:1883). "
+            "Set to empty string to disable MQTT broadcasting."
+        ),
+    )
 
     args = parser.parse_args(namespace=Args())
+
+    # Handle empty string as None (disables MQTT)
+    if args.mqtt_url == "":
+        args.mqtt_url = None
 
     # Ensure CL_SERVER_DIR exists
     # This handles the strict env check internally
@@ -91,6 +107,7 @@ def main() -> int:
     logger.info(f"Starting compute server on {args.host}:{args.port}")
     logger.info(f"Database: {config.database_url}")
     logger.info(f"Auth disabled: {config.auth_disabled}")
+    logger.info(f"MQTT URL: {config.mqtt_url or 'disabled'}")
 
     # Start server (blocks)
     try:

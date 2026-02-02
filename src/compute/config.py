@@ -27,13 +27,11 @@ class ComputeConfig:
     worker_poll_interval: float = 1.0
     worker_supported_tasks: list[str] | None = None
     
-    # MQTT Settings
-    mqtt_broker: str = "localhost"
-    mqtt_port: int = 1883
+    # MQTT Settings (unified mqtt_url replaces broker/port)
+    mqtt_url: str | None = None  # None means MQTT disabled
     mqtt_heartbeat_interval: float = 10.0
     capability_topic_prefix: str = "inference/workers"
     mqtt_job_events_topic: str = "inference/events"
-    broadcast_type: str = "mqtt"
 
     # Database
     database_url: str = ""
@@ -89,9 +87,8 @@ class ComputeConfig:
             # Worker
             compute_storage_dir=compute_storage_dir,
             worker_poll_interval=getattr(args, "worker_poll_interval", 1.0),
-            # MQTT
-            mqtt_broker=getattr(args, "mqtt_broker", "localhost"),
-            mqtt_port=getattr(args, "mqtt_port", 1883),
+            # MQTT - use mqtt_url parameter
+            mqtt_url=getattr(args, "mqtt_url", None),
             capability_topic_prefix=getattr(args, "capability_topic_prefix", "inference/workers"),
             mqtt_job_events_topic=getattr(args, "mqtt_job_events_topic", "inference/events"),
         )

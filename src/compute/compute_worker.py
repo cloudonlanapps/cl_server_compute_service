@@ -23,6 +23,7 @@ class Args(Namespace):
     log_level: str
     server_port: int
     worker_poll_interval: float
+    mqtt_url: str  # Required for worker operation
 
     def __init__(
         self,
@@ -30,6 +31,7 @@ class Args(Namespace):
         tasks: str | None = None,
         log_level: str = "INFO",
         server_port: int = 8002,
+        mqtt_url: str = "mqtt://localhost:1883",  # Default only in CLI
     ) -> None:
         super().__init__()
         self.worker_id = worker_id
@@ -37,6 +39,7 @@ class Args(Namespace):
         self.log_level = log_level
         self.server_port = server_port
         self.worker_poll_interval = 1.0
+        self.mqtt_url = mqtt_url
 
 
 def main() -> int:
@@ -78,8 +81,33 @@ def main() -> int:
         default=1.0,
         help="Polling interval for jobs in seconds (default: 1.0)",
     )
+    _ = parser.add_argument(
+        "--mqtt-url",
+        type=str,
+        default="mqtt://localhost:1883",
+        help=(
+            "MQTT broker URL for capability broadcasting. "
+            "REQUIRED for worker operation."
+        ),
+    )
 
     args = parser.parse_args(namespace=Args())
+
+    # Worker REQUIRES MQTT for capability broadcasting - validate early
+    if not args.mqtt_url:
+        print("ERROR: --mqtt-url is required for compute worker", file=sys.stderr)
+        return 1
+
+    # Validate MQTT URL format early
+    try:
+        from cl_ml_tools.utils.mqtt.mqtt_impl import MQTTBroadcaster
+        MQTTBroadcaster.validate_mqtt_url(args.mqtt_url)
+    except ValueError as e:
+        print(f"ERROR: Invalid MQTT URL: {e}", file=sys.stderr)
+        return 1
+    except ImportError:
+        # cl_ml_tools not available, skip validation
+        pass
 
     # Check that compute server is running on localhost
     # Worker requires server to be up (server creates directory and runs migrations)
@@ -119,6 +147,7 @@ def main() -> int:
     # Print startup info
     print(f"Starting compute worker: {args.worker_id}")
     print(f"Connected to server: {server_host}:{args.server_port}")
+    print(f"MQTT URL: {config.mqtt_url}")
     print(f"Task filter: {tasks or 'all available'}")
     print(f"Log level: {args.log_level}")
     print(f"Database: {config.database_url}")

@@ -4,6 +4,8 @@ import json
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from compute.capability_broadcaster import CapabilityBroadcaster
 
 
@@ -11,12 +13,11 @@ class TestCapabilityBroadcaster:
     """Tests for CapabilityBroadcaster."""
 
 
-    # @patch("compute.capability_broadcaster.Config", new_callable=MagicMock) # REMOVED
-    def test_capability_broadcaster_init(self):
+    def test_capability_broadcaster_init(self, mqtt_url: str):
         """Test CapabilityBroadcaster initialization."""
         mock_compute_config = MagicMock()
         mock_compute_config.capability_topic_prefix = "capabilities"
-        mock_compute_config.broadcast_type = "redis"
+        mock_compute_config.mqtt_url = mqtt_url
         
         broadcaster = CapabilityBroadcaster(
             worker_id="worker-1",
@@ -30,7 +31,7 @@ class TestCapabilityBroadcaster:
         assert broadcaster.broadcaster is None
         assert "worker-1" in broadcaster.topic
 
-    def test_init_mqtt_broadcaster(self):
+    def test_init_mqtt_broadcaster(self, mqtt_url: str):
         """Test initializing MQTT broadcaster."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
@@ -38,9 +39,7 @@ class TestCapabilityBroadcaster:
             
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -51,29 +50,25 @@ class TestCapabilityBroadcaster:
             broadcaster.init()
 
             assert broadcaster.broadcaster is not None
-            mock_get_broadcaster.assert_called_once()
+            mock_get_broadcaster.assert_called_once_with(mqtt_url=mqtt_url)
             mock_broadcaster.set_will.assert_called_once()  # pyright: ignore[reportAny] ignore mock types for testing purposes
 
-    def test_init_mqtt_broadcaster_no_broadcaster(self):
-        """Test init when get_broadcaster returns None."""
-        with patch("compute.capability_broadcaster.get_broadcaster", return_value=None):
-            mock_config = MagicMock()
-            mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+    def test_init_mqtt_broadcaster_raises_when_mqtt_disabled(self):
+        """Test init raises when mqtt_url is None (workers require MQTT)."""
+        mock_config = MagicMock()
+        mock_config.capability_topic_prefix = "capabilities"
+        mock_config.mqtt_url = None
 
-            broadcaster = CapabilityBroadcaster(
-                worker_id="worker-1",
-                active_tasks={"image_resize"},
-                config=mock_config
-            )
+        broadcaster = CapabilityBroadcaster(
+            worker_id="worker-1",
+            active_tasks={"image_resize"},
+            config=mock_config
+        )
 
+        with pytest.raises(ValueError, match="mqtt_url"):
             broadcaster.init()
 
-            assert broadcaster.broadcaster is None
-
-    def test_publish_success(self):
+    def test_publish_success(self, mqtt_url: str):
         """Test publishing capabilities successfully."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
@@ -82,9 +77,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -114,7 +107,7 @@ class TestCapabilityBroadcaster:
             assert data["idle_count"] == 1  # is_idle is True by default
             assert "timestamp" in data
 
-    def test_publish_when_busy(self):
+    def test_publish_when_busy(self, mqtt_url: str):
         """Test publishing when worker is busy."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster = MagicMock()
@@ -123,9 +116,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -144,7 +135,7 @@ class TestCapabilityBroadcaster:
             data: dict[str, object] = cast(dict[str, object], json.loads(payload))
             assert data["idle_count"] == 0
 
-    def test_publish_failure(self):
+    def test_publish_failure(self, mqtt_url: str):
         """Test publishing when publish fails."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster = MagicMock()
@@ -153,9 +144,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -185,7 +174,7 @@ class TestCapabilityBroadcaster:
 
         # No exception should be raised
 
-    def test_clear_success(self):
+    def test_clear_success(self, mqtt_url: str):
         """Test clearing retained capabilities."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster = MagicMock()
@@ -194,9 +183,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -211,7 +198,7 @@ class TestCapabilityBroadcaster:
             call_args = mock_broadcaster.clear_retained.call_args  # pyright: ignore[reportAny] ignore mock types for testing purposes
             assert "worker-1" in call_args[0][0]
 
-    def test_clear_failure(self):
+    def test_clear_failure(self, mqtt_url: str):
         """Test clearing when clear fails."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster = MagicMock()
@@ -220,9 +207,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
-            mock_config.mqtt_broker = "localhost"
-            mock_config.mqtt_port = 1883
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -265,7 +250,7 @@ class TestCapabilityBroadcaster:
 
         assert broadcaster.topic == "test/workers/worker-123"
 
-    def test_publish_with_empty_tasks(self):
+    def test_publish_with_empty_tasks(self, mqtt_url: str):
         """Test publishing with no active tasks."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster: MagicMock = MagicMock()
@@ -274,7 +259,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",
@@ -291,7 +276,7 @@ class TestCapabilityBroadcaster:
             data: dict[str, object] = cast(dict[str, object], json.loads(payload))
             assert data["capabilities"] == []
 
-    def test_idle_state_toggle(self):
+    def test_idle_state_toggle(self, mqtt_url: str):
         """Test toggling idle state."""
         with patch("compute.capability_broadcaster.get_broadcaster") as mock_get_broadcaster:
             mock_broadcaster = MagicMock()
@@ -300,7 +285,7 @@ class TestCapabilityBroadcaster:
 
             mock_config = MagicMock()
             mock_config.capability_topic_prefix = "capabilities"
-            mock_config.broadcast_type = "redis"
+            mock_config.mqtt_url = mqtt_url
 
             broadcaster = CapabilityBroadcaster(
                 worker_id="worker-1",

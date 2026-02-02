@@ -15,13 +15,14 @@ from compute.task_server import create_app
 
 
 @pytest.fixture
-def mock_config():
+def mock_config(mqtt_url: str):
     with patch("compute.config.ComputeConfig") as mock:
         config_instance = MagicMock()
         config_instance.auth_disabled = False
         config_instance.public_key_path = "/tmp/public_key"
         config_instance.database_url = "sqlite:///:memory:"
         config_instance.debug = False
+        config_instance.mqtt_url = mqtt_url
         mock.from_cli_args.return_value = config_instance
         yield config_instance
 

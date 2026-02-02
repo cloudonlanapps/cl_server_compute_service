@@ -42,12 +42,19 @@ class CapabilityBroadcaster:
         self.topic: str = f"{config.capability_topic_prefix}/{worker_id}"
 
     def init(self):
-        """Initialize MQTT broadcaster and set Last Will & Testament."""
-        self.broadcaster = get_broadcaster(
-            broadcast_type=self.config.broadcast_type,
-            broker=self.config.mqtt_broker,
-            port=self.config.mqtt_port,
-        )
+        """Initialize MQTT broadcaster and set Last Will & Testament.
+        
+        Raises:
+            ValueError: If mqtt_url is not configured (workers require MQTT)
+        """
+        # Worker REQUIRES MQTT for capability broadcasting - assert it
+        if self.config.mqtt_url is None:
+            raise ValueError(
+                "CapabilityBroadcaster requires mqtt_url to be configured. "
+                "Workers cannot function without MQTT capability broadcasting."
+            )
+
+        self.broadcaster = get_broadcaster(mqtt_url=self.config.mqtt_url)
 
         # Set Last Will & Testament (LWT) - published when worker disconnects
         if self.broadcaster:

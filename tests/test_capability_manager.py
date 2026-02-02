@@ -15,12 +15,10 @@ from compute.config import ComputeConfig
 
 
 @pytest.fixture
-def mock_config():
+def mock_config(mqtt_url: str):
     """Create mock configuration."""
     config = MagicMock(spec=ComputeConfig)
-    config.broadcast_type = "redis"
-    config.mqtt_broker = "localhost"
-    config.mqtt_port = 6379
+    config.mqtt_url = mqtt_url
     config.capability_topic_prefix = "inference/workers"
     return config
 

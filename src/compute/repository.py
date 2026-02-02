@@ -61,9 +61,7 @@ class JobRepositoryService(JobRepository):
 
         # Setup broadcaster for job progress updates
         self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
-            broadcast_type=config.broadcast_type,
-            broker=config.mqtt_broker,
-            port=config.mqtt_port,
+            mqtt_url=config.mqtt_url,
         )
 
     def _broadcast_progress(self, job_id: str, status: JobStatus, progress: int) -> None:

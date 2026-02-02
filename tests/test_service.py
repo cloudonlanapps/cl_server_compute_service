@@ -18,10 +18,11 @@ from compute.config import ComputeConfig
 
 
 @pytest.fixture
-def mock_config(temp_storage_dir: Path) -> ComputeConfig:
+def mock_config(temp_storage_dir: Path, mqtt_url: str) -> ComputeConfig:
     """Create mock configuration."""
     config = MagicMock(spec=ComputeConfig)
     config.compute_storage_dir = str(temp_storage_dir)
+    config.mqtt_url = mqtt_url
     return config
 
 

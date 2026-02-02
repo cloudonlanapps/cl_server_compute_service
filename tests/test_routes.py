@@ -24,7 +24,7 @@ from compute.schemas import (
 
 
 @pytest.fixture
-def app() -> FastAPI:
+def app(mqtt_url: str) -> FastAPI:
     """Create test FastAPI app."""
     test_app = FastAPI()
     test_app.include_router(router)
@@ -33,6 +33,7 @@ def app() -> FastAPI:
     mock_config = MagicMock()
     mock_config.auth_disabled = False
     mock_config.public_key_path = os.path.join(os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts"), "compute", "public_key")
+    mock_config.mqtt_url = mqtt_url
     test_app.state.config = mock_config
     
     return test_app

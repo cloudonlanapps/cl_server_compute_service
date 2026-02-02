@@ -54,11 +54,16 @@ class CapabilityManager:
         self.ready_event: threading.Event = threading.Event()
         self.config = config
 
+        # If MQTT not configured, skip capability management
+        if self.config.mqtt_url is None:
+            logger.warning("MQTT URL not configured, capability management disabled")
+            self.broadcaster = None
+            self.ready_event.set()
+            return
+
         # Get broadcaster from cl_ml_tools
         self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
-            broadcast_type=config.broadcast_type,
-            broker=config.mqtt_broker,
-            port=config.mqtt_port,
+            mqtt_url=config.mqtt_url,
         )
 
         # Subscribe to worker capability topics
