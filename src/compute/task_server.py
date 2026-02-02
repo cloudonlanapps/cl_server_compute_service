@@ -1,34 +1,32 @@
-"""Task Server - Compute job and worker management service."""
-
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from .database import get_db
+from .capability_manager import close_capability_manager, initialize_capability_manager
+from .config import ComputeServerConfig
+from .config_service import ConfigService
+from .database import check_tables_exist, get_db, init_db
 from .plugins import create_compute_plugin_router
 from .routes import router
 from .schemas import RootResponse
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
 
 
 
-def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
+def create_app(config: "ComputeServerConfig | None" = None) -> FastAPI:
     """Create and configure FastAPI application.
     
     Args:
         config: Service configuration. If None, derived from CLI/Env.
     """
-    from .config import ComputeConfig
-    from .database import check_tables_exist, init_db
-    
     if config is None:
-        config = ComputeConfig.from_cli_args(None)
-        
+        config = ComputeServerConfig.from_args()
+    
     # Initialize DB (idempotent-ish, sets globals)
     init_db(config)
     
@@ -40,7 +38,6 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
              app.state.config = config
              
         # Initialize CapabilityManager singleton
-        from .capability_manager import initialize_capability_manager
         initialize_capability_manager(config)
         
         # Startup: validate database tables exist
@@ -49,7 +46,6 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
         yield
         
         # Shutdown: cleanup capability manager
-        from .capability_manager import close_capability_manager
         close_capability_manager()
 
     app = FastAPI(title="Task Server", version="v1", lifespan=lifespan)
@@ -74,8 +70,6 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
         operation_id="root_get",
     )
     async def root(db: Session = Depends(get_db)):
-        from .config_service import ConfigService
-
         config_service = ConfigService(db)
         auth_enabled = config_service.get_auth_enabled()
         guest_mode = "off" if auth_enabled else "on"

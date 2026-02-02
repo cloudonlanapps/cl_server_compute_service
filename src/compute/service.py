@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,6 +10,7 @@ from fastapi import HTTPException, status
 from loguru import logger
 from sqlalchemy.orm import Session
 
+from .capability_manager import get_capability_manager
 from .database import SessionLocal
 from .models import Job
 from .schemas import CapabilityStats, CleanupResult, JobResponse, StorageInfo
@@ -29,20 +31,20 @@ class JobService:
             db: SQLAlchemy database session
             config: Compute service configuration
         """
-        self.db: Session = db
+        self.db = db
         self.config = config
         
         # Create repository adapter
-        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal, config)
+        self.repository = JobRepositoryService(SessionLocal, config)
         
         # Use compute_storage_dir for job files (organized per job)
-        if not config.compute_storage_dir:
+        if not self.config.compute_storage_dir:
              raise ValueError("Compute storage directory not configured")
              
         self.file_storage: JobStorageService = JobStorageService(
-            base_dir=config.compute_storage_dir
+            base_dir=self.config.compute_storage_dir
         )
-        self.storage_base: Path = Path(config.compute_storage_dir)
+        self.storage_base: Path = Path(self.config.compute_storage_dir)
 
     def get_job(self, job_id: str) -> JobResponse:
         """Get job status and results.
@@ -191,15 +193,7 @@ class JobService:
         return StorageInfo(**storage_info)
 
     def cleanup_old_jobs(self, days: int) -> CleanupResult:
-        """Clean up jobs older than specified number of days.
-
-        Args:
-            days: Number of days threshold
-
-        Returns:
-            CleanupResult with cleanup details
-        """
-        import time
+        """Clean up jobs older than specified number of days."""
 
         # Calculate cleanup info directly
         jobs_dir = self.storage_base / "jobs"
@@ -258,12 +252,9 @@ class CapabilityService:
             Example: {"image_resize": 2, "image_conversion": 1}
         """
         try:
-            from .capability_manager import get_capability_manager
-
             manager = get_capability_manager()
             return manager.get_cached_capabilities()
         except Exception as e:
-
             logger.error(f"Error retrieving worker capabilities: {e}")
             return CapabilityStats(root={})
 
@@ -274,11 +265,8 @@ class CapabilityService:
             Number of unique workers in the capability cache
         """
         try:
-            from .capability_manager import get_capability_manager
-
             manager = get_capability_manager()
             return len(manager.capabilities_cache)
         except Exception as e:
-
             logger.error(f"Error retrieving worker count: {e}")
             return 0

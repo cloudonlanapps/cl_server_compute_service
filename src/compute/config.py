@@ -1,94 +1,167 @@
-"""Configuration management for the Compute service."""
-
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
+import sys
+from argparse import ArgumentParser
 from pathlib import Path
+from typing import ClassVar
+
+from pydantic import BaseModel, ConfigDict
+
+from . import utils
 
 
-@dataclass
-class ComputeConfig:
-    """Runtime configuration for the Compute service."""
+class ComputeBaseConfig(BaseModel):
+    """Base configuration for Compute service roles."""
 
-    # Server settings
-    host: str = "0.0.0.0"
-    port: int = 8002
-    debug: bool = False
-    reload: bool = False
-    log_level: str = "info"
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        arbitrary_types_allowed=True, validate_assignment=True
+    )
 
-    # Paths
-    cl_server_dir: str = ""
-    public_key_path: str = ""
-    
-    # Worker Settings
-    compute_storage_dir: str = ""
-    worker_poll_interval: float = 1.0
-    worker_supported_tasks: list[str] | None = None
-    
-    # MQTT Settings (unified mqtt_url replaces broker/port)
-    mqtt_url: str = "mqtt://localhost:1883"
+    # Paths (populated after CLI parsing by finalize)
+    cl_server_dir: Path
+    public_key_path: Path
+    compute_storage_dir: Path
+
+    # MQTT Settings
+    mqtt_url: str
     mqtt_heartbeat_interval: float = 10.0
     capability_topic_prefix: str = "inference/workers"
-    mqtt_job_events_topic: str = "inference/events"
+    mqtt_job_events_topic: str
 
     # Database
-    database_url: str = ""
+    database_url: str
+    debug: bool = False
 
-    # Security
+    def finalize_base(self):
+        """Finalize base configuration after CLI parsing."""
+        cl_dir = utils.ensure_cl_server_dir(create_if_missing=True)
+        self.cl_server_dir = cl_dir
+
+        if not self.public_key_path:
+            self.public_key_path = cl_dir / "keys" / "public_key.pem"
+
+        if not self.compute_storage_dir:
+            self.compute_storage_dir = cl_dir / "compute"
+
+        # Determine database URL - strictly derived from CL_SERVER_DIR
+        self.database_url = str(f"sqlite:///{cl_dir / 'compute.db'}")
+
+
+class ComputeServerConfig(ComputeBaseConfig):
+    """Configuration for the Compute Server."""
+
+    _instance: ClassVar[ComputeServerConfig | None] = None
+
+    host: str = "0.0.0.0"
+    port: int = 8002
+    reload: bool = False
+    log_level: str = "info"
     auth_disabled: bool = False
 
-
+    def finalize(self):
+        """Finalize server configuration."""
+        self.finalize_base()
 
     @classmethod
-    def from_cli_args(cls, args: object | None = None) -> ComputeConfig:
-        """Create configuration from parsed CLI arguments.
+    def from_args(cls) -> ComputeServerConfig:
+        """Get or create the global ComputeServerConfig singleton."""
+        if cls._instance is not None:
+            return cls._instance
 
-        Args:
-            args: Namespace object from argparse (optional)
-
-        Returns:
-            Configured ComputeConfig instance
-        """
-        if args is None:
-            # Create empty object to allow getattr default fallback
-            args = type("Args", (), {})()
-            
-        # Get CL_SERVER_DIR from env (set in main.py) or args
-        cl_server_dir = os.getenv("CL_SERVER_DIR", "")
-        
-        # Derive compute storage dir
-        compute_storage_dir = getattr(args, "compute_storage_dir", "")
-        if not compute_storage_dir and cl_server_dir:
-            compute_storage_dir = str(Path(cl_server_dir) / "compute")
-        
-        # Determine database URL - strictly derived from CL_SERVER_DIR
-        if cl_server_dir:
-            db_url = f"sqlite:///{Path(cl_server_dir) / 'compute.db'}"
-        else:
-            raise ValueError("CL_SERVER_DIR environment variable is required to determine database URL")
-
-        # Determine public key path
-        pub_key = getattr(args, "public_key_path", "")
-        if not pub_key and cl_server_dir:
-            pub_key = str(Path(cl_server_dir) / "keys" / "public_key.pem")
-
-        return cls(
-            host=getattr(args, "host", "0.0.0.0"),
-            port=getattr(args, "port", 8002),
-            debug=getattr(args, "debug", False),
-            reload=getattr(args, "reload", False),
-            log_level=getattr(args, "log_level", "info"),
-            cl_server_dir=cl_server_dir,
-            public_key_path=pub_key,
-            database_url=db_url,
-            auth_disabled=getattr(args, "auth_disabled", False),
-            # Worker
-            compute_storage_dir=compute_storage_dir,
-            worker_poll_interval=getattr(args, "worker_poll_interval", 1.0),
-            # MQTT - use mqtt_url parameter
-            mqtt_url=getattr(args, "mqtt_url", None),
-            capability_topic_prefix=getattr(args, "capability_topic_prefix", "inference/workers"),
-            mqtt_job_events_topic=getattr(args, "mqtt_job_events_topic", "inference/events"),
+        parser = ArgumentParser(prog="compute-server")
+        parser.add_argument("--host", default="0.0.0.0")
+        parser.add_argument("--port", "-p", type=int, default=8002)
+        parser.add_argument("--debug", action="store_true", help="Enable debug mode")
+        parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload (dev)")
+        parser.add_argument("--log-level", default="info")
+        parser.add_argument("--mqtt-url", default="mqtt://localhost:1883")
+        parser.add_argument(
+            "--no-auth", action="store_true", dest="auth_disabled", help="Disable authentication"
         )
+        parser.add_argument("--public-key-path", default="")
+        parser.add_argument("--compute-storage-dir", default="")
+
+        args, _ = parser.parse_known_args()
+        config_dict = {k: v for k, v in vars(args).items() if v is not None}
+
+        if config_dict.get("public_key_path"):
+            config_dict["public_key_path"] = Path(config_dict["public_key_path"])
+        if config_dict.get("compute_storage_dir"):
+            config_dict["compute_storage_dir"] = Path(config_dict["compute_storage_dir"])
+
+        cl_dir = utils.ensure_cl_server_dir(create_if_missing=True)
+        config_dict["cl_server_dir"] = cl_dir
+
+        # Ensure mandatory fields have values
+        if "mqtt_url" not in config_dict:
+            config_dict["mqtt_url"] = "mqtt://localhost:1883"
+        if "mqtt_job_events_topic" not in config_dict:
+            config_dict["mqtt_job_events_topic"] = "inference/events"
+        if "database_url" not in config_dict:
+            config_dict["database_url"] = ""  # Populated in finalize_base
+
+        cls._instance = cls.model_validate(config_dict)
+        cls._instance.finalize()
+        return cls._instance
+
+
+class ComputeWorkerConfig(ComputeBaseConfig):
+    """Configuration for the Compute Worker."""
+
+    _instance: ClassVar[ComputeWorkerConfig | None] = None
+
+    worker_id: str = "worker-default"
+    worker_poll_interval: float = 1.0
+    worker_supported_tasks: list[str] | None = None
+    log_level: str = "info"
+
+    def finalize(self):
+        """Finalize worker configuration."""
+        self.finalize_base()
+
+    @classmethod
+    def from_args(cls) -> ComputeWorkerConfig:
+        """Get or create the global ComputeWorkerConfig singleton."""
+        if cls._instance is not None:
+            return cls._instance
+
+        parser = ArgumentParser(prog="compute-worker")
+        parser.add_argument("--worker-id", "-w", default="worker-default")
+        parser.add_argument("--tasks", "-t", default=None)
+        # Worker connected to server on this port
+        parser.add_argument("--port", "-p", type=int, default=8002, dest="server_port")
+        parser.add_argument("--worker-poll-interval", type=float, default=1.0)
+        parser.add_argument("--mqtt-url", default="mqtt://localhost:1883")
+        parser.add_argument("--log-level", default="info")
+        parser.add_argument("--public-key-path", default="")
+        parser.add_argument("--compute-storage-dir", default="")
+
+        args, _ = parser.parse_known_args()
+        config_dict = {k: v for k, v in vars(args).items() if v is not None}
+
+        if "tasks" in config_dict and config_dict["tasks"]:
+            config_dict["worker_supported_tasks"] = config_dict["tasks"].split(",")
+
+        if config_dict.get("public_key_path"):
+            config_dict["public_key_path"] = Path(config_dict["public_key_path"])
+        if config_dict.get("compute_storage_dir"):
+            config_dict["compute_storage_dir"] = Path(config_dict["compute_storage_dir"])
+
+        cl_dir = utils.ensure_cl_server_dir(create_if_missing=True)
+        config_dict["cl_server_dir"] = cl_dir
+
+        # Ensure mandatory fields have values
+        if "mqtt_url" not in config_dict:
+            config_dict["mqtt_url"] = "mqtt://localhost:1883"
+        if "mqtt_job_events_topic" not in config_dict:
+            config_dict["mqtt_job_events_topic"] = "inference/events"
+        if "database_url" not in config_dict:
+            config_dict["database_url"] = ""  # Populated in finalize_base
+
+        cls._instance = cls.model_validate(config_dict)
+        cls._instance.finalize()
+        return cls._instance
+
+
+# Simplified alias for generic code
+ComputeConfig = ComputeBaseConfig

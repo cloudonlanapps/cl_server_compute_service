@@ -11,9 +11,10 @@ The adapters handle:
 - MQTT broadcasting of job progress updates
 """
 
+import json
 import time
 from collections.abc import Sequence
-from typing import override, Any
+from typing import override
 
 # Library protocols and schemas (Pydantic models)
 from cl_ml_tools import (
@@ -32,7 +33,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 # Application models (SQLAlchemy)
 from .job_translator import db_job_to_job_record
-from .models import Job, QueueEntry
+from .models import Job
 from .config import ComputeConfig
 
 
@@ -80,7 +81,6 @@ class JobRepositoryService(JobRepository):
         }
 
         if self.broadcaster:
-            import json
             
             # Use configured topic prefix
             topic = self.config.mqtt_job_events_topic

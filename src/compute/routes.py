@@ -190,10 +190,10 @@ async def get_worker_capabilities(
     tags=["admin"],
     summary="Get Configuration",
     description="Get current service configuration. Requires admin access.",
-    operation_id="get_config_admin_config_get",
+    operation_id="get_admin_config",
     responses={200: {"model": ConfigResponse, "description": "Successful Response"}},
 )
-async def get_config(
+async def get_admin_config(
     db: Session = Depends(get_db),
     user: UserPayload | None = Depends(require_admin),
 ) -> ConfigResponse:

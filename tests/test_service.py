@@ -258,7 +258,7 @@ class TestCapabilityService:
             }
         )
 
-        with patch("compute.capability_manager.get_capability_manager", return_value=mock_manager):
+        with patch("compute.service.get_capability_manager", return_value=mock_manager):
             service = CapabilityService(test_db)
             result = service.get_available_capabilities()
 
@@ -286,7 +286,7 @@ class TestCapabilityService:
             "worker-3": MagicMock(),
         }
 
-        with patch("compute.capability_manager.get_capability_manager", return_value=mock_manager):
+        with patch("compute.service.get_capability_manager", return_value=mock_manager):
             service = CapabilityService(test_db)
             result = service.get_worker_count()
 
@@ -309,7 +309,7 @@ class TestCapabilityService:
         mock_manager = MagicMock()
         mock_manager.capabilities_cache = {}
 
-        with patch("compute.capability_manager.get_capability_manager", return_value=mock_manager):
+        with patch("compute.service.get_capability_manager", return_value=mock_manager):
             service = CapabilityService(test_db)
             result = service.get_worker_count()
 

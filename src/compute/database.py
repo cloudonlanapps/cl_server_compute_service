@@ -6,12 +6,12 @@ from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
 from loguru import logger
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeBaseConfig as ComputeConfig
 
 
 def enable_wal_mode(
@@ -123,7 +123,6 @@ def init_db(config: ComputeConfig) -> None:
     if engine is not None:
         return
 
-    logger.info(f"Initializing database: {config.database_url}")
     engine = create_db_engine(config.database_url, echo=config.debug)
     SessionLocal = create_session_factory(engine)
 
@@ -143,7 +142,6 @@ def check_tables_exist() -> None:
     Raises:
         RuntimeError: If required tables don't exist
     """
-    from sqlalchemy import inspect
 
     if engine is None:
         raise RuntimeError("Database not initialized")

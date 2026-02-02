@@ -16,14 +16,14 @@ from compute.task_server import create_app
 
 @pytest.fixture
 def mock_config(mqtt_url: str):
-    with patch("compute.config.ComputeConfig") as mock:
+    with patch("compute.config.ComputeServerConfig") as mock:
         config_instance = MagicMock()
         config_instance.auth_disabled = False
         config_instance.public_key_path = "/tmp/public_key"
         config_instance.database_url = "sqlite:///:memory:"
         config_instance.debug = False
         config_instance.mqtt_url = mqtt_url
-        mock.from_cli_args.return_value = config_instance
+        mock.from_args.return_value = config_instance
         yield config_instance
 
 @pytest.fixture
@@ -155,7 +155,7 @@ class TestTaskServerApp:
                 conn.execute(text("CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) PRIMARY KEY)"))
                 conn.commit()
 
-        with patch("compute.capability_manager.close_capability_manager") as mock_close:
+        with patch("compute.task_server.close_capability_manager") as mock_close:
             # Test lifespan context manager shutdown
             async def run_lifespan():
                 async with app.router.lifespan_context(app):

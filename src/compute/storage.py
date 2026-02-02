@@ -14,8 +14,9 @@ class JobStorageService(JobStorage):
     """Service for managing file storage with organized directory structure."""
 
     _CHUNK_SIZE: Final[int] = 1024 * 1024  # 1 MB
+    base_dir: Path
 
-    def __init__(self, base_dir: str):
+    def __init__(self, base_dir: Path | str):
         """
         Initialize file storage service.
 
