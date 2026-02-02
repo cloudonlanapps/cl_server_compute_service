@@ -209,3 +209,4 @@ CLAUDE.md
 **/.DS_Store
 PROJECT_STRUCTURE.md
 client/**
+jobs/*

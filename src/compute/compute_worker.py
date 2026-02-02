@@ -32,12 +32,16 @@ def main() -> int:
             print(f"ERROR: Invalid MQTT URL: {e}", file=sys.stderr)
             return 1
 
-    # Check that compute server is running on localhost
-    # Worker requires server to be up (server creates directory and runs migrations)
-    server_host = "localhost"
-    print(f"Checking compute server at {server_host}:{config.port}...")
+    # Check that compute server is running
+    # Parse host/port from compute_url
+    from urllib.parse import urlparse
+    parsed = urlparse(config.compute_url)
+    server_host = parsed.hostname
+    server_port = parsed.port
+
+    print(f"Checking compute server at {server_host}:{server_port}...")
     try:
-        ensure_server_running(server_host, config.port)
+        ensure_server_running(server_host, server_port)
         print("✓ Server is running\n")
     except Exception as e:
         print(f"WARNING: Server check failed: {e}")
@@ -48,7 +52,7 @@ def main() -> int:
 
     # Print startup info
     print(f"Starting compute worker: {config.worker_id}")
-    print(f"Connected to server: {server_host}:{config.port}")
+    print(f"Connected to server: {server_host}:{server_port}")
     print(f"MQTT URL: {config.mqtt_url}")
     print(f"Task filter: {config.worker_supported_tasks or 'all available'}")
     print(f"Log level: {config.log_level}")

@@ -35,7 +35,10 @@ class JobService:
         self.config = config
         
         # Create repository adapter
-        self.repository = JobRepositoryService(SessionLocal, config)
+        # Import name dynamically or access module attribute to avoid capturing None
+        # from "from .database import SessionLocal" if imported before init_db
+        from . import database
+        self.repository = JobRepositoryService(database.SessionLocal, config)
         
         # Use compute_storage_dir for job files (organized per job)
         if not self.config.compute_storage_dir:

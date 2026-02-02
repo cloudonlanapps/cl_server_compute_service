@@ -111,6 +111,7 @@ class ComputeWorkerConfig(ComputeBaseConfig):
     _instance: ClassVar[ComputeWorkerConfig | None] = None
 
     worker_id: str = "worker-default"
+    compute_url: str = "http://localhost:8002"
     worker_poll_interval: float = 1.0
     worker_supported_tasks: list[str] | None = None
     log_level: str = "info"
@@ -128,8 +129,8 @@ class ComputeWorkerConfig(ComputeBaseConfig):
         parser = ArgumentParser(prog="compute-worker")
         parser.add_argument("--worker-id", "-w", default="worker-default")
         parser.add_argument("--tasks", "-t", default=None)
-        # Worker connected to server on this port
-        parser.add_argument("--port", "-p", type=int, default=8002, dest="server_port")
+        # Worker connected to server at this URL
+        parser.add_argument("--compute-url", default="http://localhost:8002")
         parser.add_argument("--worker-poll-interval", type=float, default=1.0)
         parser.add_argument("--mqtt-url", default="mqtt://localhost:1883")
         parser.add_argument("--log-level", default="info")

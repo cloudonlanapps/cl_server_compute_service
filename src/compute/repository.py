@@ -64,6 +64,7 @@ class JobRepositoryService(JobRepository):
         self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
             mqtt_url=config.mqtt_url,
         )
+        logger.info(f"JobRepositoryService initialized with broadcaster: {self.broadcaster}")
 
     def _broadcast_progress(self, job_id: str, status: JobStatus, progress: int) -> None:
         """Broadcast job progress update via MQTT.
@@ -88,8 +89,10 @@ class JobRepositoryService(JobRepository):
             success = self.broadcaster.publish_event(topic=topic, payload=payload_str)
             if not success:
                 logger.error(f"Failed to broadcast job event: topic={topic}, job_id={job_id}, status={status.value}")
+            else:
+                logger.info(f"Broadcasted job event: topic={topic}, job_id={job_id}, status={status.value}")
         else:
-            logger.warning("No broadcaster available for job progress updates")
+            logger.warning(f"No broadcaster available for job progress updates. Payload: {payload}")
 
     @override
     def add_job(
@@ -260,6 +263,10 @@ class JobRepositoryService(JobRepository):
             )
 
             db_job = session.execute(stmt).scalar_one_or_none()
+            
+            logger.info(f"fetch_next_job: task_types={task_types}, found_job={db_job.job_id if db_job else 'None'}")
+            if db_job:
+                 logger.info(f"Found job: {db_job.job_id} status={db_job.status} task_type={db_job.task_type}")
 
             if not db_job:
                 return None
