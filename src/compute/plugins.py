@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 from cl_ml_tools import create_master_router
 
+from . import database
 from .auth import require_permission
-from .database import SessionLocal
 from .repository import JobRepositoryService
 from .storage import JobStorageService
 
@@ -20,7 +20,7 @@ def create_compute_plugin_router(config: "ComputeConfig"):
         tuple: (plugin_router, repository_adapter) for cleanup
     """
     # Create adapter instances
-    repository_adapter = JobRepositoryService(SessionLocal, config)
+    repository_adapter = JobRepositoryService(database.SessionLocal, config)
     
     if not config.compute_storage_dir:
         raise ValueError("Compute storage directory not configured")
