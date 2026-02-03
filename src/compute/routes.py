@@ -237,11 +237,11 @@ async def get__server_pref(
 
 
 @router.put(
-    "/admin/config/guest-mode",
+    "/admin/pref/guest-mode",
     tags=["admin"],
     summary="Update Guest Mode Configuration",
     description="Toggle guest mode (authentication requirement). Requires admin access.",
-    operation_id="update_guest_mode_admin_config_guest_mode_put",
+    operation_id="update_guest_mode_admin_pref_guest_mode_put",
     responses={200: {"description": "Successful Response"}},
 )
 async def update_guest_mode(
