@@ -6,6 +6,7 @@ from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
+from cl_ml_tools import MQTTBroadcaster
 from compute.models import Base, Job
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -23,6 +24,14 @@ from compute.schemas import (
 )
 
 
+@pytest.fixture(autouse=True)
+def mock_broadcaster():
+    """Mock JobStatusBroadcaster and get_broadcaster for all tests."""
+    with patch("cl_ml_tools.get_broadcaster") as mock_get_broadcaster:
+        mock_get_broadcaster.return_value = MagicMock(spec=MQTTBroadcaster)
+        yield
+
+
 @pytest.fixture
 def app() -> FastAPI:
     """Create test FastAPI app."""
@@ -33,6 +42,9 @@ def app() -> FastAPI:
     mock_config = MagicMock()
     mock_config.auth_disabled = False
     mock_config.public_key_path = os.path.join(os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts"), "compute", "public_key")
+    mock_config.mqtt_url = "mqtt://mock-broker:1883"
+    mock_config.capability_topic_prefix = "inference/workers"
+    mock_config.mqtt_job_events_topic = "inference/events"
     test_app.state.config = mock_config
     
     return test_app
@@ -70,11 +82,13 @@ class TestGetJob:
     def test_get_job_success(self, client: TestClient, db_session: Session):
         """Test getting a job successfully."""
         from compute.database import get_db
+        from compute.dependencies import get_mqtt_broadcaster
 
         app = cast(FastAPI, client.app)
         def override_get_db():
             yield db_session
         app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
         # Mock JobService.get_job to return a JobResponse
         with patch("compute.config_service.ConfigService") as mock_config:
@@ -116,6 +130,9 @@ class TestGetJob:
         def override_get_db():
             yield db_session
         app.dependency_overrides[get_db] = override_get_db
+
+        from compute.dependencies import get_mqtt_broadcaster
+        app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
         with patch("compute.config_service.ConfigService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
@@ -192,6 +209,9 @@ class TestDeleteJob:
 
                     app = cast(FastAPI, client.app)
                     app.dependency_overrides[get_db] = override_get_db
+                    
+                    from compute.dependencies import get_mqtt_broadcaster
+                    app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
                     response = client.delete("/jobs/test-job-2")
 
@@ -217,6 +237,9 @@ class TestDeleteJob:
 
                 app = cast(FastAPI, client.app)
                 app.dependency_overrides[get_db] = override_get_db
+                
+                from compute.dependencies import get_mqtt_broadcaster
+                app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
                 response = client.delete("/jobs/nonexistent-job")
 

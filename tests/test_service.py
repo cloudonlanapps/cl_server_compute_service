@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from cl_ml_tools import MQTTBroadcaster
 from compute.models import Base, Job
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -22,7 +23,17 @@ def mock_config(temp_storage_dir: Path) -> ComputeConfig:
     """Create mock configuration."""
     config = MagicMock(spec=ComputeConfig)
     config.compute_storage_dir = str(temp_storage_dir)
+    config.mqtt_url = "mqtt://mock-broker:1883"
+    config.capability_topic_prefix = "inference/workers"
+    config.mqtt_job_events_topic = "inference/events"
     return config
+
+@pytest.fixture(autouse=True)
+def mock_broadcaster():
+    """Mock JobStatusBroadcaster for all tests in this file."""
+    with patch("cl_ml_tools.get_broadcaster") as mock:
+        mock.return_value = MagicMock(spec=MQTTBroadcaster)
+        yield mock
 
 
 @pytest.fixture

@@ -7,6 +7,7 @@ from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from cl_ml_tools import MQTTBroadcaster
 
 from compute.worker import (
     ComputeWorker,
@@ -76,9 +77,15 @@ class TestComputeWorker:
             patch("compute.worker.Worker") as mock_worker,
             patch("compute.worker.CapabilityBroadcaster") as mock_broadcaster,
             patch("compute.database.SessionLocal") as mock_session_local,
+            patch("cl_ml_tools.get_broadcaster") as mock_get_broadcaster,
         ):
             # Configure mock session local
             mock_session_local.return_value = MagicMock()
+            
+            # Configure get_broadcaster
+            mock_mqtt = MagicMock(spec=MQTTBroadcaster)
+            mock_get_broadcaster.return_value = mock_mqtt
+
             # Configure mock library worker
             mock_worker_instance = MagicMock()
             mock_worker_instance.get_supported_task_types.return_value = (
@@ -96,6 +103,7 @@ class TestComputeWorker:
                 "worker": mock_worker,
                 "worker_instance": mock_worker_instance,
                 "broadcaster": mock_broadcaster,
+                "mqtt_broadcaster": mock_mqtt,
             }
 
     @pytest.mark.usefixtures("mock_dependencies")
@@ -162,7 +170,10 @@ class TestComputeWorker:
             patch("compute.worker.JobStorageService"),
             patch("compute.worker.Worker") as mock_worker,
             patch("compute.database.SessionLocal", new=MagicMock()),  # Mock DB session
+            patch("cl_ml_tools.get_broadcaster") as mock_get_broadcaster,
         ):
+            mock_mqtt = MagicMock(spec=MQTTBroadcaster)
+            mock_get_broadcaster.return_value = mock_mqtt
             mock_worker_instance = MagicMock()
             mock_worker_instance.get_supported_task_types.return_value = (
                 []
@@ -177,7 +188,7 @@ class TestComputeWorker:
                 + "/compute"
             )
 
-            with pytest.raises(RuntimeError, match="No compute plugins found"):
+            with pytest.raises(RuntimeError, match="No compute plugins"):
                 _ = ComputeWorker(
                     worker_id="test-worker",
                     config=mock_config,
@@ -386,9 +397,9 @@ class TestComputeWorker:
 
         await worker.run()
         await shutdown_task
+        worker.close()
 
         # Verify initialization and cleanup
-        worker.capability_broadcaster.init.assert_called_once()
         worker.capability_broadcaster.clear.assert_called_once()
         assert worker.capability_broadcaster.publish.call_count >= 1
 
@@ -448,8 +459,9 @@ class TestComputeWorker:
         worker.capability_broadcaster.init = MagicMock()
         worker.capability_broadcaster.publish = MagicMock()
         worker.capability_broadcaster.clear = MagicMock()
-
+        
         await worker.run()
+        worker.close()
 
         # Should complete gracefully
         worker.capability_broadcaster.clear.assert_called_once()
@@ -496,10 +508,7 @@ class TestComputeWorker:
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
         """Test run_worker classmethod creates and runs worker."""
-        with (
-            patch("compute.worker.signal.signal") as mock_signal,
-            patch("compute.worker.shutdown_broadcaster") as mock_shutdown,
-        ):
+        with patch("compute.worker.signal.signal") as mock_signal:
             # Set shutdown immediately to exit quickly
             shutdown_event.set()
 
@@ -526,17 +535,11 @@ class TestComputeWorker:
             # Verify signal handlers were registered
             assert mock_signal.call_count == 2
 
-            # Verify broadcaster shutdown was called
-            mock_shutdown.assert_called_once()
-
     async def test_run_worker_classmethod_with_no_tasks(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
         """Test run_worker classmethod with None tasks."""
-        with (
-            patch("compute.worker.signal.signal"),
-            patch("compute.worker.shutdown_broadcaster"),
-        ):
+        with patch("compute.worker.signal.signal"):
             shutdown_event.set()
 
             mock_dependencies["worker_instance"].run_once = AsyncMock(
@@ -583,6 +586,7 @@ class TestComputeWorker:
         shutdown_event.set()
 
         await worker.run()
+        worker.close()
 
         # Cleanup should be called
         worker.capability_broadcaster.clear.assert_called_once()

@@ -14,6 +14,8 @@ from .schemas import (
     StorageInfo,
     WorkerCapabilitiesResponse,
 )
+from cl_ml_tools import MQTTBroadcaster
+from .dependencies import get_mqtt_broadcaster
 from .service import CapabilityService, JobService
 
 if TYPE_CHECKING:
@@ -37,11 +39,12 @@ async def get_job(
     job_id: str = Path(..., title="Job ID"),
     db: Session = Depends(get_db),
     config: "ComputeConfig" = Depends(get_config),
+    broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ) -> JobResponse:
     """Get job status and results."""
     _ = user
-    job_service = JobService(db, config)
+    job_service = JobService(db, config, broadcaster)
     return job_service.get_job(job_id)
 
 
@@ -57,11 +60,12 @@ async def delete_job(
     job_id: str = Path(..., title="Job ID"),
     db: Session = Depends(get_db),
     config: "ComputeConfig" = Depends(get_config),
+    broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ):
     """Delete job and all associated files."""
     _ = user
-    job_service = JobService(db, config)
+    job_service = JobService(db, config, broadcaster)
     job_service.delete_job(job_id)
     # No return statement - FastAPI will return 204 automatically
 
@@ -79,6 +83,7 @@ async def get_job_file(
     file_path: str = Path(..., title="Relative file path within job directory"),
     db: Session = Depends(get_db),
     config: "ComputeConfig" = Depends(get_config),
+    broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ) -> FileResponse:
     """Download file from job's output directory.
@@ -98,7 +103,7 @@ async def get_job_file(
         400: Invalid file path or path is a directory
     """
     _ = user
-    job_service = JobService(db, config)
+    job_service = JobService(db, config, broadcaster)
     file_absolute_path = job_service.get_job_file(job_id, file_path)
 
     # Return file with FileResponse (FastAPI automatically sets Content-Type)
@@ -120,11 +125,12 @@ async def get_job_file(
 async def get_storage_size(
     db: Session = Depends(get_db),
     config: "ComputeConfig" = Depends(get_config),
+    broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_admin),
 ) -> StorageInfo:
     """Get total storage usage (admin only)."""
     _ = user
-    job_service = JobService(db, config)
+    job_service = JobService(db, config, broadcaster)
     return job_service.get_storage_size()
 
 
@@ -140,11 +146,12 @@ async def cleanup_old_jobs(
     days: int = Query(7, ge=0, description="Delete jobs older than N days"),
     db: Session = Depends(get_db),
     config: "ComputeConfig" = Depends(get_config),
+    broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_admin),
 ) -> CleanupResult:
     """Clean up jobs older than specified number of days (admin only)."""
     _ = user
-    job_service = JobService(db, config)
+    job_service = JobService(db, config, broadcaster)
     return job_service.cleanup_old_jobs(days)
 
 

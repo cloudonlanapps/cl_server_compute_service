@@ -2,6 +2,7 @@ import pytest
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+from cl_ml_tools import MQTTBroadcaster
 from fastapi import FastAPI
 from fastapi.openapi.models import OpenAPI
 from fastapi.testclient import TestClient
@@ -22,8 +23,19 @@ def mock_config():
         config_instance.public_key_path = "/tmp/public_key"
         config_instance.database_url = "sqlite:///:memory:"
         config_instance.debug = False
+        config_instance.mqtt_url = "mqtt://mock-broker:1883"
+        config_instance.capability_topic_prefix = "inference/workers"
+        config_instance.mqtt_job_events_topic = "inference/events"
         mock.from_cli_args.return_value = config_instance
-        yield config_instance
+        
+        # We also need to mock get_broadcaster because app startup initializes CapabilityManager/JobStatusBroadcaster
+        # which now check only for mqtt_url and try to connect or fail
+        with patch("cl_ml_tools.get_broadcaster") as mock_broadcaster:
+             
+            # Setup successful broadcaster mock
+            mock_b = MagicMock(spec=MQTTBroadcaster)
+            mock_broadcaster.return_value = mock_b
+            yield config_instance
 
 @pytest.fixture
 def client(mock_config) -> TestClient:

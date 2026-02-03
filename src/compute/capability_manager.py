@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-
-from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
+from cl_ml_tools import MQTTBroadcaster
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from typing import TYPE_CHECKING
@@ -33,43 +32,34 @@ class CapabilityMessage(BaseModel):
 class CapabilityManager:
     """Manages worker capability discovery using cl_ml_tools broadcaster.
 
-    This class replaces the custom MQTTClient implementation with the
-    standardized broadcaster from cl_ml_tools. It maintains the same
-    external interface for backward compatibility.
 
-    Key differences from MQTTClient:
-    - Uses get_broadcaster() instead of paho-mqtt directly
-    - Relies on cl_ml_tools for connection management
-    - Same caching and aggregation logic
     """
 
-    def __init__(self, config: ComputeConfig):
+    def __init__(self, config: ComputeConfig, broadcaster: MQTTBroadcaster):
         """Initialize capability manager with broadcaster.
 
         Args:
             config: Compute service configuration
+            broadcaster: Initialized MQTT broadcaster
         """
         self.capabilities_cache: dict[str, CapabilityMessage] = {}
         self.cache_lock: threading.Lock = threading.Lock()
         self.ready_event: threading.Event = threading.Event()
         self.config = config
-
-        # Get broadcaster from cl_ml_tools
-        self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
-            broadcast_type=config.broadcast_type,
-            broker=config.mqtt_broker,
-            port=config.mqtt_port,
-        )
+        self.broadcaster: MQTTBroadcaster = broadcaster
 
         # Subscribe to worker capability topics
         topic_pattern = f"{config.capability_topic_prefix}/+"
-
-        if self.broadcaster:
-            _ = self.broadcaster.subscribe(
+        
+        try:
+             _ = self.broadcaster.subscribe(
                 topic=topic_pattern, callback=self.on_message
             )
-            logger.info(f"Subscribed to capability topics: {topic_pattern}")
-
+             logger.info(f"Subscribed to capability topics: {topic_pattern}")
+        except Exception as e:
+            logger.error(f"Failed to subscribe to capability topics: {e}")
+            raise
+            
         self.ready_event.set()
 
     def on_message(self, topic: str, payload: str):
@@ -160,23 +150,13 @@ class CapabilityManager:
 
         return CapabilityStats(root=total_workers)
 
-    def disconnect(self):
-        """Disconnect from broadcaster."""
-        try:
-            if self.broadcaster:
-                self.broadcaster.disconnect()
-            logger.info("Disconnected from broadcaster")
-        except Exception as e:
-            logger.error(f"Error disconnecting from broadcaster: {e}")
-
-
-def initialize_capability_manager(config: ComputeConfig) -> CapabilityManager:
+def initialize_capability_manager(config: ComputeConfig, broadcaster: MQTTBroadcaster) -> CapabilityManager:
     """Initialize singleton CapabilityManager instance."""
     global _capability_manager_instance
 
     with _manager_lock:
         if _capability_manager_instance is None:
-            _capability_manager_instance = CapabilityManager(config)
+            _capability_manager_instance = CapabilityManager(config, broadcaster)
     
     return _capability_manager_instance
 
@@ -197,5 +177,4 @@ def close_capability_manager():
     global _capability_manager_instance
 
     if _capability_manager_instance is not None:
-        _capability_manager_instance.disconnect()
         _capability_manager_instance = None

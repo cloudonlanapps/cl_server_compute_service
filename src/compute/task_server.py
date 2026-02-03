@@ -35,22 +35,49 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Lifespan event handler for startup and shutdown."""
+        from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
+        from loguru import logger
+        
         # Inject config if not present (though create_app should ensure it)
         if not hasattr(app.state, "config"):
              app.state.config = config
              
+        # Initialize MQTT Broadcaster
+        logger.info(f"Initializing MQTT broadcaster at {config.mqtt_url}")
+        broadcaster = get_broadcaster(url=config.mqtt_url)
+        
+        if not isinstance(broadcaster, MQTTBroadcaster):
+            error_msg = "MQTT broadcaster required but returned NoOpBroadcaster or invalid type."
+            logger.critical(error_msg)
+            # Raise RuntimeError to stop Uvicorn startup
+            raise RuntimeError(error_msg)
+            
+        app.state.broadcaster = broadcaster
+        
+        # Inject broadcaster into JobRepositoryService (late binding)
+        if hasattr(app.state, "repository_adapter"):
+            app.state.repository_adapter.set_broadcaster(broadcaster)
+             
         # Initialize CapabilityManager singleton
         from .capability_manager import initialize_capability_manager
-        initialize_capability_manager(config)
+        initialize_capability_manager(config, broadcaster)
         
         # Startup: validate database tables exist
         check_tables_exist()
 
         yield
         
-        # Shutdown: cleanup capability manager
+        # Shutdown: cleanup capability manager and broadcaster
         from .capability_manager import close_capability_manager
         close_capability_manager()
+        
+        # Disconnect broadcaster
+        try:
+            if broadcaster:
+                logger.info("Disconnecting MQTT broadcaster...")
+                broadcaster.disconnect()
+        except Exception as e:
+            logger.error(f"Error disconnecting broadcaster: {e}")
 
     app = FastAPI(title="Task Server", version="v1", lifespan=lifespan)
     app.state.config = config
@@ -94,6 +121,9 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
     # Now we pass config to it
     plugin_router, repository_adapter = create_compute_plugin_router(config)
     app.include_router(plugin_router)
+    
+    # Store repository adapter for late binding of broadcaster
+    app.state.repository_adapter = repository_adapter
     
     return app
 

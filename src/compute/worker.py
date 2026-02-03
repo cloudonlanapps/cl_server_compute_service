@@ -87,12 +87,29 @@ class ComputeWorker:
         self.config = config
         self.poll_interval: float = config.worker_poll_interval
 
+        # Initialize MQTT Broadcaster
+        # This is where we strictly enforce MQTT availability for the worker
+        from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
+        
+        try:
+            self.broadcaster = get_broadcaster(url=config.mqtt_url)
+            
+            if not isinstance(self.broadcaster, MQTTBroadcaster):
+                raise RuntimeError("MQTT broadcaster required but returned NoOpBroadcaster or invalid type.")
+        except Exception as e:
+            # Re-raise as RuntimeError for top-level handling
+            raise RuntimeError(f"Failed to initialize MQTT broadcaster: {e}")
+
         # Create repository and storage adapters
         # Note: SessionLocal is global from database module, initialized by init_db
         if not database.SessionLocal:
              raise RuntimeError("Database not initialized. Call database.init_db() first.")
              
-        self.repository: JobRepositoryService = JobRepositoryService(database.SessionLocal, config)
+        self.repository: JobRepositoryService = JobRepositoryService(
+            database.SessionLocal, 
+            config,
+            broadcaster=self.broadcaster
+        )
         
         if not config.compute_storage_dir:
             raise ValueError("Compute storage directory not configured")
@@ -144,7 +161,10 @@ class ComputeWorker:
 
         # Initialize capability broadcaster
         self.capability_broadcaster: CapabilityBroadcaster = CapabilityBroadcaster(
-            worker_id=worker_id, active_tasks=self.active_tasks, config=config
+            worker_id=worker_id, 
+            active_tasks=self.active_tasks, 
+            config=config,
+            broadcaster=self.broadcaster
         )
 
     async def _heartbeat_task(self):
@@ -190,12 +210,21 @@ class ComputeWorker:
             self.capability_broadcaster.is_idle = True
             self.capability_broadcaster.publish()
 
+    def close(self):
+        """Shutdown worker components."""
+        try:
+             # Clear retained capability message
+            self.capability_broadcaster.clear()
+            
+            # Disconnect broadcaster
+            if self.broadcaster:
+                self.broadcaster.disconnect()
+        except Exception as e:
+            logger.error(f"Error closing worker: {e}")
+
     async def run(self):
         """Main worker loop - poll for jobs and execute them."""
         logger.info(f"Worker {self.worker_id} starting...")
-
-        # Initialize capability broadcaster
-        self.capability_broadcaster.init()
 
         # Publish initial capabilities
         self.capability_broadcaster.publish()
@@ -225,9 +254,10 @@ class ComputeWorker:
                 await heartbeat_task
             except asyncio.CancelledError:
                 pass
-
-            # Clear retained capability message
-            self.capability_broadcaster.clear()
+            
+            
+            # self.close() is called by the caller (run_worker)
+            pass
 
     @classmethod
     async def run_worker(cls, worker_id: str, config: ComputeConfig, tasks: list[str] | None):
@@ -251,5 +281,7 @@ class ComputeWorker:
         try:
             await worker.run()
         finally:
-            # Shutdown broadcaster
-            shutdown_broadcaster()
+            # Ensure worker is closed properly
+            worker.close()
+            # Shutdown broadcaster (if used as global, but we use instance now)
+            # shutdown_broadcaster() # Deprecated usage locally

@@ -19,21 +19,26 @@ if TYPE_CHECKING:
     from .config import ComputeConfig
 
 
+from cl_ml_tools import MQTTBroadcaster
+
+# ... (imports)
+
 class JobService:
     """Service layer for job management."""
 
-    def __init__(self, db: Session, config: ComputeConfig):
+    def __init__(self, db: Session, config: ComputeConfig, broadcaster: MQTTBroadcaster | None = None):
         """Initialize the job service.
 
         Args:
             db: SQLAlchemy database session
             config: Compute service configuration
+            broadcaster: Optional MQTT broadcaster
         """
         self.db: Session = db
         self.config = config
         
         # Create repository adapter
-        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal, config)
+        self.repository: JobRepositoryService = JobRepositoryService(SessionLocal, config, broadcaster)
         
         # Use compute_storage_dir for job files (organized per job)
         if not config.compute_storage_dir:

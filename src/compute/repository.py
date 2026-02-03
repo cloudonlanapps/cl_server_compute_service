@@ -22,8 +22,6 @@ from cl_ml_tools import (
     JobRepository,
     JobStatus,
     MQTTBroadcaster,
-    NoOpBroadcaster,
-    get_broadcaster,
 )
 from loguru import logger
 from pydantic import JsonValue
@@ -34,6 +32,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from .job_translator import db_job_to_job_record
 from .models import Job, QueueEntry
 from .config import ComputeConfig
+from .job_status_broadcaster import JobStatusBroadcaster
 
 
 class JobRepositoryService(JobRepository):
@@ -49,49 +48,25 @@ class JobRepositoryService(JobRepository):
     - Atomic job claiming using optimistic locking
     """
 
-    def __init__(self, session_factory: sessionmaker[Session], config: ComputeConfig):
+    def __init__(self, session_factory: sessionmaker[Session], config: ComputeConfig, broadcaster: MQTTBroadcaster | None = None):
         """Initialize repository with session factory and MQTT broadcaster.
 
         Args:
             session_factory: SQLAlchemy session factory (sessionmaker)
             config: ComputeConfig instance for MQTT settings
+            broadcaster: Initialized MQTT broadcaster (optional)
         """
         self.session_factory: sessionmaker[Session] = session_factory
         self.config = config
+        self.job_status_broadcaster = JobStatusBroadcaster(config, broadcaster)
 
-        # Setup broadcaster for job progress updates
-        self.broadcaster: MQTTBroadcaster | NoOpBroadcaster | None = get_broadcaster(
-            broadcast_type=config.broadcast_type,
-            broker=config.mqtt_broker,
-            port=config.mqtt_port,
-        )
-
-    def _broadcast_progress(self, job_id: str, status: JobStatus, progress: int) -> None:
-        """Broadcast job progress update via MQTT.
+    def set_broadcaster(self, broadcaster: MQTTBroadcaster) -> None:
+        """Set the MQTT broadcaster.
 
         Args:
-            job_id: Unique job identifier
-            status: Current job status
-            progress: Progress percentage (0-100)
+            broadcaster: Initialized MQTT broadcaster
         """
-        payload = {
-            "job_id": job_id,
-            "event_type": status.value,
-            "timestamp": int(time.time() * 1000),
-            "progress": progress,
-        }
-
-        if self.broadcaster:
-            import json
-            
-            # Use configured topic prefix
-            topic = self.config.mqtt_job_events_topic
-            payload_str = json.dumps(payload)
-            success = self.broadcaster.publish_event(topic=topic, payload=payload_str)
-            if not success:
-                logger.error(f"Failed to broadcast job event: topic={topic}, job_id={job_id}, status={status.value}")
-        else:
-            logger.warning("No broadcaster available for job progress updates")
+        self.job_status_broadcaster.set_broadcaster(broadcaster)
 
     @override
     def add_job(
@@ -136,8 +111,8 @@ class JobRepositoryService(JobRepository):
 
             session.add(db_job)
             session.commit()
-
-            self._broadcast_progress(db_job.job_id, JobStatus(db_job.status), db_job.progress)
+            
+            self.job_status_broadcaster.broadcast_progress(db_job.job_id, JobStatus(db_job.status), db_job.progress)
 
             return True
 
@@ -218,7 +193,7 @@ class JobRepositoryService(JobRepository):
                 
                 # Always broadcast after a successful update
                 # We use the current state from DB to ensure we have both status and progress
-                self._broadcast_progress(
+                self.job_status_broadcaster.broadcast_progress(
                     db_job.job_id, 
                     JobStatus(db_job.status), 
                     db_job.progress
@@ -288,8 +263,9 @@ class JobRepositoryService(JobRepository):
                 return None
 
             # Refresh the job object to get updated values
+            # Refresh the job object to get updated values
             session.refresh(db_job)
-            self._broadcast_progress(db_job.job_id, JobStatus(db_job.status), db_job.progress)
+            self.job_status_broadcaster.broadcast_progress(db_job.job_id, JobStatus(db_job.status), db_job.progress)
             return db_job_to_job_record(db_job)
 
     @override

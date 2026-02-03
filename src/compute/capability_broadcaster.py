@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import TYPE_CHECKING
-from cl_ml_tools import (
-    BroadcasterBase,
-    get_broadcaster,
-)
+from cl_ml_tools import MQTTBroadcaster
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,33 +23,26 @@ class WorkerCapability(BaseModel):
 class CapabilityBroadcaster:
     """Manages MQTT broadcasting of worker capabilities for service discovery."""
 
-    def __init__(self, worker_id: str, active_tasks: set[str], config: ComputeConfig):
+    def __init__(self, worker_id: str, active_tasks: set[str], config: ComputeConfig, broadcaster: MQTTBroadcaster):
         """Initialize capability broadcaster.
 
         Args:
             worker_id: Unique identifier for this worker
             active_tasks: Set of task types this worker can execute
             config: Compute service configuration
+            broadcaster: Initialized MQTT broadcaster
         """
         self.worker_id: str = worker_id
         self.active_tasks: set[str] = active_tasks
         self.config = config
         self.is_idle: bool = True
-        self.broadcaster: BroadcasterBase | None = None  # Type from cl_ml_tools (not exported)
+        self.broadcaster: MQTTBroadcaster = broadcaster
         self.topic: str = f"{config.capability_topic_prefix}/{worker_id}"
-
-    def init(self):
-        """Initialize MQTT broadcaster and set Last Will & Testament."""
-        self.broadcaster = get_broadcaster(
-            broadcast_type=self.config.broadcast_type,
-            broker=self.config.mqtt_broker,
-            port=self.config.mqtt_port,
-        )
 
         # Set Last Will & Testament (LWT) - published when worker disconnects
         if self.broadcaster:
             _ = self.broadcaster.set_will(topic=self.topic, payload="", qos=1, retain=True)
-            logger.info(f"MQTT broadcaster initialized for worker {self.worker_id}")
+        logger.info(f"MQTT broadcaster initialized for worker {self.worker_id}")
 
     def publish(self):
         """Publish current worker capabilities to MQTT."""
