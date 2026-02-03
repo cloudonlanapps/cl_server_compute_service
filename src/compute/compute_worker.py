@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
+from urllib.parse import urlparse
 from loguru import logger
 from .config import ComputeWorkerConfig
 
@@ -32,14 +33,18 @@ def main() -> int:
     # Worker requires server to be up (server creates directory and runs migrations)
     from .utils import ensure_server_running
 
-    server_host = "localhost"
-    print(f"Checking compute server at {server_host}:{config.server_port}...")
-    try:
-        ensure_server_running(server_host, config.server_port)
-        print("✓ Server is running\n")
-    except Exception as e:
-        print(f"WARNING: Server check failed: {e}")
-        print("Worker may fail if database/dirs are not ready.")
+
+    # Parse compute_url to get host and port
+    parsed_url = urlparse(config.compute_url)
+    server_host = parsed_url.hostname
+    server_port = parsed_url.port
+    
+    if not server_host or not server_port:
+        raise ValueError(f"Invalid compute_url: {config.compute_url}. Must include scheme, hostname, and port (e.g., http://localhost:8002)")
+    
+    print(f"Checking compute server at {server_host}:{server_port}...")
+    ensure_server_running(server_host, server_port)
+    print("✓ Server is running\n")
 
     # Initialize Database (Worker needs access to DB)
     from . import database
@@ -50,7 +55,7 @@ def main() -> int:
 
     # Print startup info
     print(f"Starting compute worker: {config.worker_id}")
-    print(f"Connected to server: {server_host}:{config.server_port}")
+    print(f"Connected to server: {server_host}:{server_port}")
     print(f"Task filter: {config.worker_supported_tasks or 'all available'}")
     print(f"Log level: {config.log_level}")
     print(f"Database: {config.database_url}")

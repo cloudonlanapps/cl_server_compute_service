@@ -103,7 +103,7 @@ class ComputeWorkerConfig(ComputeConfigBase):
     worker_id: str = "worker-default"
     worker_poll_interval: float = 1.0
     worker_supported_tasks: list[str] | None = None
-    server_port: int = 8002 # Used to check server status
+    compute_url: str = "http://localhost:8002"
 
     @classmethod
     def get_config(cls) -> ComputeWorkerConfig:
@@ -121,7 +121,7 @@ class ComputeWorkerConfig(ComputeConfigBase):
         parser.add_argument("--log-level", "-l", default="INFO", help="Logging level")
         parser.add_argument("--debug", action="store_true", help="Enable debug mode") # Typically worker sets log level directly, but debug flag helps.
         
-        parser.add_argument("--port", "-p", type=int, default=8002, dest="server_port", help="Compute server port")
+        parser.add_argument("--compute-url", default="http://localhost:8002", help="Compute server URL")
         parser.add_argument("--worker-poll-interval", type=float, default=1.0, help="Polling interval")
         
         # MQTT args (common)
