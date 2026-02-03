@@ -109,7 +109,7 @@ async def get_current_user(
 ) -> UserPayload | None:
     """Validate the JWT and return the user payload."""
 
-    from .config_service import ConfigService
+    from .config_service import ServerPrefService
 
     # Check request state config first (env/CLI override)
     # If auth is disabled at system level, we skip auth
@@ -117,7 +117,7 @@ async def get_current_user(
         return None
 
     # Check runtime config (database override)
-    config_service = ConfigService(db)
+    config_service = ServerPrefService(db)
     if not config_service.get_auth_enabled():  # auth_enabled=false → guest mode ON
         return None
 
@@ -170,14 +170,14 @@ def require_permission(permission: Permission):
         current_user: UserPayload | None = Depends(get_current_user),
         db: Session = Depends(get_db),
     ) -> UserPayload | None:
-        from .config_service import ConfigService
+        from .config_service import ServerPrefService
 
         # Check system config
         if request.app.state.config.auth_disabled:
             return current_user
 
         # Check runtime config
-        config_service = ConfigService(db)
+        config_service = ServerPrefService(db)
         if not config_service.get_auth_enabled():  # auth_enabled=false → guest mode ON
             return current_user
 
@@ -207,14 +207,14 @@ async def require_admin(
     current_user: UserPayload | None = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> UserPayload | None:
-    from .config_service import ConfigService
+    from .config_service import ServerPrefService
 
     # Check system config
     if request.app.state.config.auth_disabled:
         return current_user
 
     # Check runtime config
-    config_service = ConfigService(db)
+    config_service = ServerPrefService(db)
     if not config_service.get_auth_enabled():  # auth_enabled=false → guest mode ON
         return current_user
 

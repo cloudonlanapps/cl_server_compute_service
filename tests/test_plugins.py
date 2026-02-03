@@ -1,14 +1,14 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from compute.config import ComputeConfig
+from compute.config import ComputeServerConfig
 from compute.plugins import create_compute_plugin_router
 
 
 @pytest.fixture
 def mock_config():
     """Create mock configuration."""
-    config = MagicMock(spec=ComputeConfig)
+    config = MagicMock(spec=ComputeServerConfig)
     config.compute_storage_dir = "/tmp/compute_storage"
     return config
 

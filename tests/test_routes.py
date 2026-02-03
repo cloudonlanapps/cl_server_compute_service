@@ -21,6 +21,7 @@ from compute.schemas import (
     JobResponse,
     StorageInfo,
     WorkerCapabilitiesResponse,
+    PrefResponse,
 )
 
 
@@ -91,7 +92,7 @@ class TestGetJob:
         app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
         # Mock JobService.get_job to return a JobResponse
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobService.get_job") as mock_get_job:
                 mock_get_job.return_value = JobResponse(
@@ -134,7 +135,7 @@ class TestGetJob:
         from compute.dependencies import get_mqtt_broadcaster
         app.dependency_overrides[get_mqtt_broadcaster] = lambda: None
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobService.get_job") as mock_get_job:
                 # Simulate job not found by raising HTTPException
@@ -164,7 +165,7 @@ class TestGetJob:
         def mock_auth():
             raise HTTPException(status_code=401, detail="Authentication required")
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True
             app.dependency_overrides[require_permission("ai_inference_support")] = mock_auth
 
@@ -198,7 +199,7 @@ class TestDeleteJob:
             yield db_session
 
         # Mock the repository and file storage
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobRepositoryService") as mock_repo_class:
                 with patch("compute.service.JobStorageService"):
@@ -228,7 +229,7 @@ class TestDeleteJob:
         def override_get_db():
             yield db_session
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             with patch("compute.service.JobRepositoryService") as mock_repo_class:
                 mock_repo = MagicMock()

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeConfigBase
 
 from .schemas import CapabilityStats
 
@@ -35,7 +35,7 @@ class CapabilityManager:
 
     """
 
-    def __init__(self, config: ComputeConfig, broadcaster: MQTTBroadcaster):
+    def __init__(self, config: ComputeConfigBase, broadcaster: MQTTBroadcaster):
         """Initialize capability manager with broadcaster.
 
         Args:
@@ -150,7 +150,7 @@ class CapabilityManager:
 
         return CapabilityStats(root=total_workers)
 
-def initialize_capability_manager(config: ComputeConfig, broadcaster: MQTTBroadcaster) -> CapabilityManager:
+def initialize_capability_manager(config: ComputeConfigBase, broadcaster: MQTTBroadcaster) -> CapabilityManager:
     """Initialize singleton CapabilityManager instance."""
     global _capability_manager_instance
 

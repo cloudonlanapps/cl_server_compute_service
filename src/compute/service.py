@@ -16,7 +16,7 @@ from .repository import JobRepositoryService
 from .storage import JobStorageService
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
 
 
 from cl_ml_tools import MQTTBroadcaster
@@ -26,7 +26,7 @@ from cl_ml_tools import MQTTBroadcaster
 class JobService:
     """Service layer for job management."""
 
-    def __init__(self, db: Session, config: ComputeConfig, broadcaster: MQTTBroadcaster | None = None):
+    def __init__(self, db: Session, config: ComputeServerConfig, broadcaster: MQTTBroadcaster | None = None):
         """Initialize the job service.
 
         Args:

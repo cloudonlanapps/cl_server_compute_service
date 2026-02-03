@@ -7,7 +7,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeWorkerConfig
 
 class WorkerCapability(BaseModel):
     """Individual worker capability information (from MQTT messages)."""
@@ -23,7 +23,7 @@ class WorkerCapability(BaseModel):
 class CapabilityBroadcaster:
     """Manages MQTT broadcasting of worker capabilities for service discovery."""
 
-    def __init__(self, worker_id: str, active_tasks: set[str], config: ComputeConfig, broadcaster: MQTTBroadcaster):
+    def __init__(self, worker_id: str, active_tasks: set[str], config: ComputeWorkerConfig, broadcaster: MQTTBroadcaster):
         """Initialize capability broadcaster.
 
         Args:

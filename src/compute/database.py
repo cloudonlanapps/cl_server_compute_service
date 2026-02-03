@@ -11,7 +11,7 @@ from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeConfigBase
 
 
 def enable_wal_mode(
@@ -112,7 +112,7 @@ engine: Engine | None = None
 SessionLocal: sessionmaker[Session] | None = None
 
 
-def init_db(config: ComputeConfig) -> None:
+def init_db(config: ComputeConfigBase) -> None:
     """Initialize database engine and session factory.
 
     Args:

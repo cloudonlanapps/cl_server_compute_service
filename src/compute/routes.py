@@ -9,7 +9,7 @@ from .auth import UserPayload, require_admin, require_permission
 from .database import get_db
 from .schemas import (
     CleanupResult,
-    ConfigResponse,
+    PrefResponse,
     JobResponse,
     StorageInfo,
     WorkerCapabilitiesResponse,
@@ -19,11 +19,11 @@ from .dependencies import get_mqtt_broadcaster
 from .service import CapabilityService, JobService
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
 
 router = APIRouter()
 
-def get_config(request: Request) -> "ComputeConfig":
+def get__server_pref(request: Request) -> "ComputeServerConfig":
     """Get service configuration from app state."""
     return request.app.state.config
 
@@ -38,7 +38,7 @@ def get_config(request: Request) -> "ComputeConfig":
 async def get_job(
     job_id: str = Path(..., title="Job ID"),
     db: Session = Depends(get_db),
-    config: "ComputeConfig" = Depends(get_config),
+    config: "ComputeServerConfig" = Depends(get__server_pref),
     broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ) -> JobResponse:
@@ -59,7 +59,7 @@ async def get_job(
 async def delete_job(
     job_id: str = Path(..., title="Job ID"),
     db: Session = Depends(get_db),
-    config: "ComputeConfig" = Depends(get_config),
+    config: "ComputeServerConfig" = Depends(get__server_pref),
     broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ):
@@ -82,7 +82,7 @@ async def get_job_file(
     job_id: str = Path(..., title="Job ID"),
     file_path: str = Path(..., title="Relative file path within job directory"),
     db: Session = Depends(get_db),
-    config: "ComputeConfig" = Depends(get_config),
+    config: "ComputeServerConfig" = Depends(get__server_pref),
     broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_permission("ai_inference_support")),
 ) -> FileResponse:
@@ -124,7 +124,7 @@ async def get_job_file(
 )
 async def get_storage_size(
     db: Session = Depends(get_db),
-    config: "ComputeConfig" = Depends(get_config),
+    config: "ComputeServerConfig" = Depends(get__server_pref),
     broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_admin),
 ) -> StorageInfo:
@@ -145,7 +145,7 @@ async def get_storage_size(
 async def cleanup_old_jobs(
     days: int = Query(7, ge=0, description="Delete jobs older than N days"),
     db: Session = Depends(get_db),
-    config: "ComputeConfig" = Depends(get_config),
+    config: "ComputeServerConfig" = Depends(get__server_pref),
     broadcaster: MQTTBroadcaster | None = Depends(get_mqtt_broadcaster),
     user: UserPayload | None = Depends(require_admin),
 ) -> CleanupResult:
@@ -193,28 +193,28 @@ async def get_worker_capabilities(
 
 # Admin configuration endpoints
 @router.get(
-    "/admin/config",
+    "/admin/pref",
     tags=["admin"],
     summary="Get Configuration",
     description="Get current service configuration. Requires admin access.",
-    operation_id="get_config_admin_config_get",
-    responses={200: {"model": ConfigResponse, "description": "Successful Response"}},
+    operation_id="get_pref_admin_config_get",
+    responses={200: {"model": PrefResponse, "description": "Successful Response"}},
 )
-async def get_config(
+async def get__server_pref(
     db: Session = Depends(get_db),
     user: UserPayload | None = Depends(require_admin),
-) -> ConfigResponse:
+) -> PrefResponse:
     """Get current service configuration.
 
     Requires admin access.
     """
     _ = user
-    from .config_service import ConfigService
+    from .config_service import ServerPrefService
 
-    config_service = ConfigService(db)
+    config_service = ServerPrefService(db)
 
     # Get config metadata
-    metadata = config_service.get_config_metadata("auth_enabled")
+    metadata = config_service.get_pref_metadata("auth_enabled")
 
     if metadata:
         value_str = str(metadata["value"]) if metadata["value"] is not None else "false"
@@ -222,7 +222,7 @@ async def get_config(
         updated_by = metadata["updated_by"]
         # Invert logic: auth_enabled=false means guest_mode=true
         auth_enabled = value_str.lower() == "true"
-        return ConfigResponse(
+        return PrefResponse(
             guest_mode=not auth_enabled,
             updated_at=int(updated_at)
             if updated_at is not None and not isinstance(updated_at, str)
@@ -233,7 +233,7 @@ async def get_config(
         )
 
     # Default if not found: auth_enabled=false means guest_mode=true
-    return ConfigResponse(guest_mode=True, updated_at=None, updated_by=None)
+    return PrefResponse(guest_mode=True, updated_at=None, updated_by=None)
 
 
 @router.put(
@@ -255,9 +255,9 @@ async def update_guest_mode(
     guest_mode=true means no authentication required.
     guest_mode=false means authentication required.
     """
-    from .config_service import ConfigService
+    from .config_service import ServerPrefService
 
-    config_service = ConfigService(db)
+    config_service = ServerPrefService(db)
 
     # Get user ID from JWT
     user_id = user.id if user else None

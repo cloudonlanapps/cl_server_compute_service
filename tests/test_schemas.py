@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from compute.schemas import CleanupResult, JobResponse, StorageInfo
+from compute.schemas import CleanupResult, JobResponse, StorageInfo, PrefResponse
 
 
 class TestJobResponse:
@@ -203,3 +203,32 @@ class TestCleanupResult:
 
         with pytest.raises(ValidationError):
             _ = CleanupResult.model_validate({"freed_space": 1000})
+
+
+class TestPrefResponse:
+    """Tests for PrefResponse schema."""
+
+    def test_pref_response_valid(self):
+        """Test PrefResponse with valid data."""
+        pref = PrefResponse(
+            guest_mode=True,
+            updated_at=1234567890000,
+            updated_by="admin_user",
+        )
+
+        assert pref.guest_mode is True
+        assert pref.updated_at == 1234567890000
+        assert pref.updated_by == "admin_user"
+
+    def test_pref_response_defaults(self):
+        """Test PrefResponse with default values."""
+        pref = PrefResponse(guest_mode=False)
+
+        assert pref.guest_mode is False
+        assert pref.updated_at is None
+        assert pref.updated_by is None
+
+    def test_pref_response_missing_fields(self):
+        """Test that PrefResponse requires guest_mode."""
+        with pytest.raises(ValidationError):
+            _ = PrefResponse.model_validate({})

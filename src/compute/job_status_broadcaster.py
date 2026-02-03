@@ -15,13 +15,13 @@ from cl_ml_tools import (
 from loguru import logger
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeConfigBase
 
 
 class JobStatusBroadcaster:
     """Manages MQTT broadcasting of job status updates."""
 
-    def __init__(self, config: ComputeConfig, broadcaster: MQTTBroadcaster | None = None):
+    def __init__(self, config: ComputeConfigBase, broadcaster: MQTTBroadcaster | None = None):
         """Initialize broadcaster.
         
         Args:

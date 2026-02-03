@@ -61,7 +61,7 @@ class WorkerCapabilitiesResponse(BaseModel):
     capabilities: CapabilityStats = Field(..., description="Available capability counts")
 
 
-class ConfigResponse(BaseModel):
+class PrefResponse(BaseModel):
     """Response schema for configuration endpoints."""
 
     guest_mode: bool = Field(..., description="Whether guest mode is enabled (true = no authentication required)")

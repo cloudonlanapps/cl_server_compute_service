@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .models import ServiceConfig
 
 
-class ConfigService:
+class ServerPrefService:
     """Service for managing runtime configuration."""
 
     # Simple in-memory cache
@@ -49,7 +49,7 @@ class ConfigService:
         age = (self._now_timestamp() - self._cache_timestamps[key]) / 1000
         return age < self._cache_ttl
 
-    def get_config(self, key: str, default: str | None = None) -> str | None:
+    def get_pref(self, key: str, default: str | None = None) -> str | None:
         """Get configuration value.
 
         Args:
@@ -74,7 +74,7 @@ class ConfigService:
 
         return default
 
-    def set_config(self, key: str, value: str, user_id: str | None = None) -> None:
+    def set_pref(self, key: str, value: str, user_id: str | None = None) -> None:
         """Set configuration value.
 
         Args:
@@ -109,7 +109,7 @@ class ConfigService:
         Returns:
             True if auth is enabled, False otherwise (guest mode)
         """
-        value = self.get_config("auth_enabled", "false")
+        value = self.get_pref("auth_enabled", "false")
         return value.lower() == "true" if value else False
 
     def set_auth_enabled(self, enabled: bool, user_id: str | None = None) -> None:
@@ -119,9 +119,9 @@ class ConfigService:
             enabled: Whether to enable authentication
             user_id: User ID making the change
         """
-        self.set_config("auth_enabled", str(enabled).lower(), user_id)
+        self.set_pref("auth_enabled", str(enabled).lower(), user_id)
 
-    def get_config_metadata(self, key: str) -> dict[str, str | int | None] | None:
+    def get_pref_metadata(self, key: str) -> dict[str, str | int | None] | None:
         """Get configuration with metadata.
 
         Args:

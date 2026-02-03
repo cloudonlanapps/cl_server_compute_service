@@ -7,10 +7,10 @@ from .repository import JobRepositoryService
 from .storage import JobStorageService
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
 
 
-def create_compute_plugin_router(config: "ComputeConfig"):
+def create_compute_plugin_router(config: "ComputeConfigBase"):
     """Create router with all registered compute plugins.
 
     Args:

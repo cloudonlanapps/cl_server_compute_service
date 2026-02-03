@@ -13,21 +13,24 @@ from .schemas import RootResponse
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
 
 
 
-def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
+def create_app(config: "ComputeServerConfig | None" = None) -> FastAPI:
     """Create and configure FastAPI application.
     
     Args:
         config: Service configuration. If None, derived from CLI/Env.
     """
-    from .config import ComputeConfig
+    from .config import ComputeServerConfig
     from .database import check_tables_exist, init_db
     
     if config is None:
-        config = ComputeConfig.from_cli_args(None)
+        try:
+             config = ComputeServerConfig.get_config()
+        except:
+             raise ValueError("Failed to parse config from commandline")
         
     # Initialize DB (idempotent-ish, sets globals)
     init_db(config)
@@ -101,9 +104,9 @@ def create_app(config: "ComputeConfig | None" = None) -> FastAPI:
         operation_id="root_get",
     )
     async def root(db: Session = Depends(get_db)):
-        from .config_service import ConfigService
+        from .config_service import ServerPrefService
 
-        config_service = ConfigService(db)
+        config_service = ServerPrefService(db)
         auth_enabled = config_service.get_auth_enabled()
         guest_mode = "off" if auth_enabled else "on"
 

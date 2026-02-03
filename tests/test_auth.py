@@ -191,7 +191,8 @@ class TestGetCurrentUser:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
         
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
+            mock_config.return_value.get_pref.return_value = "true" 
             mock_config.return_value.get_auth_enabled.return_value = False  # Guest mode
             user = await get_current_user(request=mock_request, token="any-token", db=mock_db)
             assert user is None
@@ -202,7 +203,7 @@ class TestGetCurrentUser:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             user = await get_current_user(request=mock_request, token=None, db=mock_db)
             assert user is None
@@ -243,7 +244,7 @@ class TestGetCurrentUser:
         mock_request.app.state.config.auth_disabled = False
         mock_request.app.state.config.public_key_path = "/path/to/key.pem"
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with patch("compute.auth.get_public_key", return_value=public_pem):
                 user = await get_current_user(request=mock_request, token=token, db=mock_db)
@@ -262,7 +263,7 @@ class TestGetCurrentUser:
         mock_request.app.state.config.auth_disabled = False
         mock_request.app.state.config.public_key_path = "/path/to/key.pem"
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with patch("compute.auth.get_public_key", return_value=public_key):
                 with pytest.raises(HTTPException) as exc_info:
@@ -292,7 +293,7 @@ class TestRequirePermission:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await checker(request=mock_request, current_user=None, db=mock_db)
@@ -318,7 +319,7 @@ class TestRequirePermission:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await checker(request=mock_request, current_user=admin_user, db=mock_db)
             assert result == admin_user
@@ -341,7 +342,7 @@ class TestRequirePermission:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await checker(request=mock_request, current_user=user, db=mock_db)
             assert result == user
@@ -364,7 +365,7 @@ class TestRequirePermission:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await checker(request=mock_request, current_user=user, db=mock_db)
@@ -392,7 +393,7 @@ class TestRequireAdmin:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await require_admin(request=mock_request, current_user=None, db=mock_db)
@@ -417,7 +418,7 @@ class TestRequireAdmin:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             result = await require_admin(request=mock_request, current_user=admin_user, db=mock_db)
             assert result == admin_user
@@ -439,7 +440,7 @@ class TestRequireAdmin:
         mock_request = MagicMock()
         mock_request.app.state.config.auth_disabled = False
 
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = True  # Auth required
             with pytest.raises(HTTPException) as exc_info:
                 _ = await require_admin(request=mock_request, current_user=user, db=mock_db)

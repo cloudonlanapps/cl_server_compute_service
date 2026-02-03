@@ -12,13 +12,13 @@ from compute.capability_manager import (
     get_capability_manager,
     initialize_capability_manager,
 )
-from compute.config import ComputeConfig
+from compute.config import ComputeConfigBase
 
 
 @pytest.fixture
 def mock_config():
     """Create mock configuration."""
-    config = MagicMock(spec=ComputeConfig)
+    config = MagicMock(spec=ComputeConfigBase)
     config.broadcast_type = "redis"
     config.mqtt_url = "mqtt://mock-broker:1883"
     config.capability_topic_prefix = "inference/workers"

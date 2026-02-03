@@ -15,13 +15,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from compute.schemas import CapabilityStats
 from compute.service import CapabilityService, JobService
-from compute.config import ComputeConfig
+from compute.config import ComputeServerConfig
 
 
 @pytest.fixture
-def mock_config(temp_storage_dir: Path) -> ComputeConfig:
+def mock_config(temp_storage_dir: Path) -> ComputeServerConfig:
     """Create mock configuration."""
-    config = MagicMock(spec=ComputeConfig)
+    config = MagicMock(spec=ComputeServerConfig)
     config.compute_storage_dir = str(temp_storage_dir)
     config.mqtt_url = "mqtt://mock-broker:1883"
     config.capability_topic_prefix = "inference/workers"
@@ -58,7 +58,7 @@ def temp_storage_dir() -> Generator[Path, None, None]:
 class TestJobService:
     """Tests for JobService."""
 
-    def test_job_service_init(self, test_db: Session, mock_config: ComputeConfig):
+    def test_job_service_init(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test JobService initialization."""
         service = JobService(test_db, mock_config)
 
@@ -68,7 +68,7 @@ class TestJobService:
         assert service.file_storage is not None
         assert service.storage_base is not None
 
-    def test_get_job_success(self, test_db: Session, mock_config: ComputeConfig):
+    def test_get_job_success(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test getting a job that exists."""
         # Create test job in database
         job = Job(
@@ -94,7 +94,7 @@ class TestJobService:
         assert result.status == "queued"
         assert result.params == {"key": "value"}
 
-    def test_get_job_not_found(self, test_db: Session, mock_config: ComputeConfig):
+    def test_get_job_not_found(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test getting a job that doesn't exist."""
         service = JobService(test_db, mock_config)
 
@@ -104,7 +104,7 @@ class TestJobService:
         assert exc_info.value.status_code == 404
         assert "not found" in exc_info.value.detail.lower()
 
-    def test_get_job_with_all_fields(self, test_db: Session, mock_config: ComputeConfig):
+    def test_get_job_with_all_fields(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test getting a job with all fields populated."""
         job = Job(
             job_id="test-job-2",
@@ -130,7 +130,7 @@ class TestJobService:
         assert result.completed_at == 1234567891000
         assert result.priority == 7
 
-    def test_delete_job_success(self, test_db: Session, mock_config: ComputeConfig):
+    def test_delete_job_success(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test deleting a job."""
         # Create test job
         job = Job(
@@ -158,7 +158,7 @@ class TestJobService:
                     mock_delete.assert_called_once_with("test-job-3")
                     mock_remove.assert_called_once_with("test-job-3")
 
-    def test_delete_job_not_found(self, test_db: Session, mock_config: ComputeConfig):
+    def test_delete_job_not_found(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test deleting a job that doesn't exist."""
         service = JobService(test_db, mock_config)
 
@@ -168,7 +168,7 @@ class TestJobService:
 
             assert exc_info.value.status_code == 404
 
-    def test_get_storage_size_empty(self, test_db: Session, mock_config: ComputeConfig):
+    def test_get_storage_size_empty(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test get_storage_size with no jobs."""
         service = JobService(test_db, mock_config)
         result = service.get_storage_size()
@@ -176,7 +176,7 @@ class TestJobService:
         assert result.total_size == 0
         assert result.job_count == 0
 
-    def test_get_storage_size_with_jobs(self, test_db: Session, mock_config: ComputeConfig, temp_storage_dir: Path):
+    def test_get_storage_size_with_jobs(self, test_db: Session, mock_config: ComputeServerConfig, temp_storage_dir: Path):
         """Test get_storage_size with jobs."""
         # Create job directories with files
         jobs_dir = temp_storage_dir / "jobs"
@@ -196,7 +196,7 @@ class TestJobService:
         assert result.total_size > 0
         assert result.job_count == 2
 
-    def test_cleanup_old_jobs_no_old_jobs(self, test_db: Session, mock_config: ComputeConfig):
+    def test_cleanup_old_jobs_no_old_jobs(self, test_db: Session, mock_config: ComputeServerConfig):
         """Test cleanup when no old jobs exist."""
         service = JobService(test_db, mock_config)
         result = service.cleanup_old_jobs(days=7)
@@ -204,7 +204,7 @@ class TestJobService:
         assert result.deleted_count == 0
         assert result.freed_space == 0
 
-    def test_cleanup_old_jobs_with_old_jobs(self, test_db: Session, mock_config: ComputeConfig, temp_storage_dir: Path):
+    def test_cleanup_old_jobs_with_old_jobs(self, test_db: Session, mock_config: ComputeServerConfig, temp_storage_dir: Path):
         """Test cleanup with old jobs."""
         import time
 

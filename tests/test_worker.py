@@ -525,11 +525,10 @@ class TestComputeWorker:
 
             mock_config = MagicMock()
             mock_config.worker_poll_interval = 1.0
+            mock_config.worker_supported_tasks = ["image_resize"]
 
             await ComputeWorker.run_worker(
-                worker_id="test-worker",
-                config=mock_config,
-                tasks=["image_resize"],
+                config=mock_config
             )
 
             # Verify signal handlers were registered
@@ -558,9 +557,7 @@ class TestComputeWorker:
             mock_config.worker_supported_tasks = None
 
             await ComputeWorker.run_worker(
-                worker_id="test-worker",
-                config=mock_config,
-                tasks=None,
+                config=mock_config
             )
 
             # Should complete without error

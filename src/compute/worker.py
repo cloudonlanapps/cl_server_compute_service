@@ -24,7 +24,7 @@ from .repository import JobRepositoryService
 from .storage import JobStorageService
 
 if TYPE_CHECKING:
-    from .config import ComputeConfig
+    from .config import ComputeWorkerConfig
 
 # Global shutdown event and signal counter
 shutdown_event = asyncio.Event()
@@ -73,7 +73,7 @@ class ComputeWorker:
     def __init__(
         self,
         worker_id: str,
-        config: ComputeConfig,
+        config: ComputeWorkerConfig,
         supported_tasks: list[str] | None = None,
     ):
         """Initialize compute worker.
@@ -260,22 +260,20 @@ class ComputeWorker:
             pass
 
     @classmethod
-    async def run_worker(cls, worker_id: str, config: ComputeConfig, tasks: list[str] | None):
+    async def run_worker(cls, config: ComputeWorkerConfig):
         """Create and run worker with given configuration.
 
         Args:
-            worker_id: Unique worker identifier
             config: Worker configuration
-            tasks: List of task types to process (None = all available)
         """
         # Register signal handlers for graceful shutdown
         _ = signal.signal(signal.SIGINT, signal_handler)
         _ = signal.signal(signal.SIGTERM, signal_handler)
 
         worker = cls(
-            worker_id=worker_id,
+            worker_id=config.worker_id,
             config=config,
-            supported_tasks=tasks,
+            supported_tasks=config.worker_supported_tasks,
         )
 
         try:

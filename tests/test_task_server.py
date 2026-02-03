@@ -17,7 +17,7 @@ from compute.task_server import create_app
 
 @pytest.fixture
 def mock_config():
-    with patch("compute.config.ComputeConfig") as mock:
+    with patch("compute.config.ComputeServerConfig") as mock:
         config_instance = MagicMock()
         config_instance.auth_disabled = False
         config_instance.public_key_path = "/tmp/public_key"
@@ -26,7 +26,7 @@ def mock_config():
         config_instance.mqtt_url = "mqtt://mock-broker:1883"
         config_instance.capability_topic_prefix = "inference/workers"
         config_instance.mqtt_job_events_topic = "inference/events"
-        mock.from_cli_args.return_value = config_instance
+        mock.get_config.return_value = config_instance
         
         # We also need to mock get_broadcaster because app startup initializes CapabilityManager/JobStatusBroadcaster
         # which now check only for mqtt_url and try to connect or fail
@@ -100,7 +100,7 @@ class TestTaskServerApp:
 
     def test_root_endpoint(self, client: TestClient):
         """Test root health check endpoint."""
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             response = client.get("/")
 
@@ -112,7 +112,7 @@ class TestTaskServerApp:
 
     def test_root_response_schema(self, client: TestClient):
         """Test root endpoint response matches schema."""
-        with patch("compute.config_service.ConfigService") as mock_config:
+        with patch("compute.config_service.ServerPrefService") as mock_config:
             mock_config.return_value.get_auth_enabled.return_value = False
             response = client.get("/")
 
@@ -134,7 +134,7 @@ class TestTaskServerApp:
             # Get the app instance from client
             app = cast(FastAPI, client.app)
             
-            with patch("compute.config_service.ConfigService") as mock_config_svc:
+            with patch("compute.config_service.ServerPrefService") as mock_config_svc:
                 mock_config_svc.return_value.get_auth_enabled.return_value = False
                 app.dependency_overrides[get_db] = override_get_db
 

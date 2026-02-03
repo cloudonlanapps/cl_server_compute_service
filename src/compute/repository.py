@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session, sessionmaker
 # Application models (SQLAlchemy)
 from .job_translator import db_job_to_job_record
 from .models import Job, QueueEntry
-from .config import ComputeConfig
+from .config import ComputeConfigBase
 from .job_status_broadcaster import JobStatusBroadcaster
 
 
@@ -48,12 +48,12 @@ class JobRepositoryService(JobRepository):
     - Atomic job claiming using optimistic locking
     """
 
-    def __init__(self, session_factory: sessionmaker[Session], config: ComputeConfig, broadcaster: MQTTBroadcaster | None = None):
+    def __init__(self, session_factory: sessionmaker[Session], config: ComputeConfigBase, broadcaster: MQTTBroadcaster | None = None):
         """Initialize repository with session factory and MQTT broadcaster.
 
         Args:
             session_factory: SQLAlchemy session factory (sessionmaker)
-            config: ComputeConfig instance for MQTT settings
+            config: ComputeConfigBase instance for MQTT settings
             broadcaster: Initialized MQTT broadcaster (optional)
         """
         self.session_factory: sessionmaker[Session] = session_factory
