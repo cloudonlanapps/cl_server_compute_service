@@ -214,6 +214,7 @@ class TestComputeWorker:
         assert worker.poll_interval == 30
 
     @pytest.mark.usefixtures("mock_dependencies")
+    @pytest.mark.asyncio
     async def test_heartbeat_task_publishes_periodically(self):
         """Test heartbeat task publishes capabilities periodically."""
         mock_config = MagicMock()
@@ -248,6 +249,7 @@ class TestComputeWorker:
         # The important thing is it doesn't raise an exception
 
     @pytest.mark.usefixtures("mock_dependencies")
+    @pytest.mark.asyncio
     async def test_heartbeat_task_stops_on_shutdown(self):
         """Test heartbeat task stops when shutdown event is set."""
         mock_config = MagicMock()
@@ -276,6 +278,7 @@ class TestComputeWorker:
         # Task should complete without being cancelled
         assert task.done()
 
+    @pytest.mark.asyncio
     async def test_process_next_job_success(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -301,6 +304,7 @@ class TestComputeWorker:
         # Verify broadcaster state changes
         assert worker.capability_broadcaster.publish.call_count >= 2  # busy + idle
 
+    @pytest.mark.asyncio
     async def test_process_next_job_no_jobs(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -322,6 +326,7 @@ class TestComputeWorker:
 
         assert result is False
 
+    @pytest.mark.asyncio
     async def test_process_next_job_error(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -345,6 +350,7 @@ class TestComputeWorker:
 
         assert result is False  # Should return False on error
 
+    @pytest.mark.asyncio
     async def test_process_next_job_updates_broadcaster_state(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -368,6 +374,7 @@ class TestComputeWorker:
         # Should be marked idle after processing
         assert worker.capability_broadcaster.is_idle is True
 
+    @pytest.mark.asyncio
     async def test_run_worker_loop(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -403,6 +410,7 @@ class TestComputeWorker:
         worker.capability_broadcaster.clear.assert_called_once()
         assert worker.capability_broadcaster.publish.call_count >= 1
 
+    @pytest.mark.asyncio
     async def test_run_worker_loop_processes_jobs(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -438,6 +446,7 @@ class TestComputeWorker:
 
         assert call_count >= 2
 
+    @pytest.mark.asyncio
     async def test_run_worker_loop_handles_cancelled_error(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -466,6 +475,7 @@ class TestComputeWorker:
         # Should complete gracefully
         worker.capability_broadcaster.clear.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_run_worker_loop_handles_general_exception(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -504,6 +514,7 @@ class TestComputeWorker:
         # Should continue after exception
         assert call_count >= 2
 
+    @pytest.mark.asyncio
     async def test_run_worker_classmethod(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -534,6 +545,7 @@ class TestComputeWorker:
             # Verify signal handlers were registered
             assert mock_signal.call_count == 2
 
+    @pytest.mark.asyncio
     async def test_run_worker_classmethod_with_no_tasks(
         self, mock_dependencies: dict[str, MagicMock | AsyncMock]
     ):
@@ -563,6 +575,7 @@ class TestComputeWorker:
             # Should complete without error
 
     @pytest.mark.usefixtures("mock_dependencies")
+    @pytest.mark.asyncio
     async def test_run_cancels_heartbeat_on_shutdown(self):
         """Test that run cancels heartbeat task on shutdown."""
         mock_config = MagicMock()

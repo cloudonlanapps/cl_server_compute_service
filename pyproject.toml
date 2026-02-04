@@ -69,9 +69,11 @@ packages = ["src/compute"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-asyncio_mode = "auto"
+asyncio_mode = "strict"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "intelligence: marks tests related to intelligence features",
+    "admin_only: marks tests as requiring admin permissions (deselect with '-m \"not admin_only\"')",
 ]
 addopts = "--cov=compute --cov-report=html --cov-report=term-missing --cov-fail-under=90"
 
