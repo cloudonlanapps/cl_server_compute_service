@@ -40,6 +40,7 @@ def create_app(config: "ComputeServerConfig | None" = None) -> FastAPI:
         """Lifespan event handler for startup and shutdown."""
         from cl_ml_tools import MQTTBroadcaster, NoOpBroadcaster, get_broadcaster
         from loguru import logger
+        from . import database
         
         # Inject config if not present (though create_app should ensure it)
         if not hasattr(app.state, "config"):
@@ -81,6 +82,14 @@ def create_app(config: "ComputeServerConfig | None" = None) -> FastAPI:
                 broadcaster.disconnect()
         except Exception as e:
             logger.error(f"Error disconnecting broadcaster: {e}")
+            
+        # Dispose database connection
+        try:
+             if database.engine:
+                 logger.info("Disposing database connection...")
+                 database.engine.dispose()
+        except Exception as e:
+             logger.error(f"Error disposing database engine: {e}")
 
     app = FastAPI(title="Task Server", version="v1", lifespan=lifespan)
     app.state.config = config

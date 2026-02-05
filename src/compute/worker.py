@@ -219,6 +219,10 @@ class ComputeWorker:
             # Disconnect broadcaster
             if self.broadcaster:
                 self.broadcaster.disconnect()
+            
+            # Dispose database connection
+            if database.engine:
+                database.engine.dispose()
         except Exception as e:
             logger.error(f"Error closing worker: {e}")
 

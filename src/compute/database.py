@@ -9,6 +9,7 @@ from loguru import logger
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
+import os
 
 if TYPE_CHECKING:
     from .config import ComputeConfigBase
@@ -124,6 +125,14 @@ def init_db(config: ComputeConfigBase) -> None:
         return
 
     logger.info(f"Initializing database: {config.database_url}")
+    
+    # Pre-flight check for DB lock (SQLite only)
+    if config.database_url.startswith("sqlite"):
+        try:
+             check_db_lock(config.database_url)
+        except Exception as e:
+             logger.warning(f"Database lock check warning: {e}")
+
     engine = create_db_engine(config.database_url, echo=config.debug)
     SessionLocal = create_session_factory(engine)
 
@@ -165,3 +174,50 @@ def check_tables_exist() -> None:
         )
         logger.error(msg)
         raise RuntimeError(msg)
+
+
+def check_db_lock(db_url: str, timeout: int = 2) -> None:
+    """Check if SQLite database is locked by another process.
+    
+    Args:
+        db_url: Database URL
+        timeout: Timeout in seconds
+        
+    Raises:
+        RuntimeError: If database is locked
+    """
+    if not db_url.startswith("sqlite:///"):
+        return
+        
+    path = db_url.replace("sqlite:///", "")
+    if path == ":memory:":
+        return
+        
+    if not os.path.exists(path):
+        return
+
+    # Attempt to acquire a lock by running a simple immediate transaction
+    # This is a "canary" test to see if the DB is write-locked by a zombie process
+    import sqlite3
+    
+    try:
+        # Connect with short timeout
+        conn = sqlite3.connect(path, timeout=timeout)
+        try:
+            cursor = conn.cursor()
+            # BEGIN IMMEDIATE tries to get a RESERVED lock immediately
+            # If a WAL writer is active, this might fail or wait
+            cursor.execute("BEGIN IMMEDIATE")
+            cursor.execute("ROLLBACK")
+        finally:
+            conn.close()
+    except sqlite3.OperationalError as e:
+         if "locked" in str(e):
+             logger.error(f"Database {path} is LOCKED by another process!")
+             logger.error("This usually means a 'compute-worker' or server process did not shut down cleanly.")
+             logger.error("Run with '--force' to kill zombie processes.")
+             raise RuntimeError(f"Database is locked: {e}")
+         else:
+             logger.warning(f"Database check failed (non-lock error): {e}")
+
+
