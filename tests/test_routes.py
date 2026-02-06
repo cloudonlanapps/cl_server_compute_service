@@ -42,7 +42,10 @@ def app() -> FastAPI:
     # Inject mock config
     mock_config = MagicMock()
     mock_config.auth_disabled = False
-    mock_config.public_key_path = os.path.join(os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts"), "compute", "public_key")
+    test_artifact_dir = os.getenv("TEST_ARTIFACT_DIR", "/tmp/cl_server_test_artifacts")
+    mock_config.cl_server_dir = test_artifact_dir
+    mock_config.compute_storage_dir = os.path.join(test_artifact_dir, "compute")
+    mock_config.public_key_path = os.path.join(test_artifact_dir, "compute", "public_key")
     mock_config.mqtt_url = "mqtt://mock-broker:1883"
     mock_config.capability_topic_prefix = "inference/workers"
     mock_config.mqtt_job_events_topic = "inference/events"

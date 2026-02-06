@@ -20,6 +20,8 @@ def mock_config():
     with patch("compute.config.ComputeServerConfig") as mock:
         config_instance = MagicMock()
         config_instance.auth_disabled = False
+        config_instance.cl_server_dir = "/tmp/cl_server_test_artifacts"
+        config_instance.compute_storage_dir = "/tmp/cl_server_test_artifacts/compute"
         config_instance.public_key_path = "/tmp/public_key"
         config_instance.database_url = "sqlite:///:memory:"
         config_instance.debug = False
