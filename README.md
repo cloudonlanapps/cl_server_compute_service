@@ -134,6 +134,7 @@ uv run compute-worker --worker-id worker-1 --port 8002 --tasks image_resize,imag
 
 - `GET /jobs/{job_id}` - Get job status and results
 - `DELETE /jobs/{job_id}` - Delete job and associated files
+- `GET /jobs/{job_id}/files/{file_path:path}` - Download job output files
 
 ### Worker Capabilities
 
@@ -141,8 +142,10 @@ uv run compute-worker --worker-id worker-1 --port 8002 --tasks image_resize,imag
 
 ### Admin Endpoints
 
-- `GET /admin/jobs/storage/size` - Get total storage usage
-- `DELETE /admin/jobs/cleanup?days=7` - Cleanup old jobs
+- `GET /admin/jobs/storage/size` - Get total storage usage (admin only)
+- `DELETE /admin/jobs/cleanup?days=7` - Cleanup old jobs (admin only)
+- `GET /admin/pref` - Get service configuration (admin only)
+- `PUT /admin/pref/guest-mode` - Toggle guest mode/authentication (admin only)
 
 ### Compute Plugin Endpoints
 
